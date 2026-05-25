@@ -1,0 +1,21 @@
+# Rust / cargo-skyline build output
+/target/
+
+# Skyline artifacts copied outside target
+*.nro
+*.nso
+*.npdm
+*.so
+
+# Runtime/debug logs
+/smash-gamepad-overlay.log
+
+# Editor and local tooling state
+.vscode/
+.idea/
+.cursorindexingignore
+.specstory/
+
+# OS metadata
+.DS_Store
+Thumbs.db
