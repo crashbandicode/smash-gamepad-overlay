@@ -74,47 +74,55 @@ This creates:
 - `local-assets/modified/info_melee/unpacked/blyt/info_melee.bflyt`
 - `local-assets/modified/info_melee/layout.arc`
 
-Recommended first edit:
-
-1. Open `blyt/info_melee.bflyt`.
-2. Add a new root-level `Pane` under `RootPane`:
-   - name: `sgpo_root`
-   - position: start around `x=760`, `y=-330`
-   - size: about `220 x 160`
-   - alpha: `255`
-3. Add one child `Picture` pane:
-   - name: `sgpo_pro_a_marker`
-   - position: `0,0`
-   - size: about `28 x 28`
-   - alpha: `255`
-   - use an existing simple white texture/material if possible, such as the archive's `com_white32^s` texture reference
-4. Do not add BFLAN animations for the first test.
-5. Do not use names referenced by existing BFLANs.
-6. Keep all names prefixed with `sgpo_`.
-
-This should give the Rust plugin a real Smash UI pane to find and update:
+The current edit inserts a root-level SGPO pane tree:
 
 ```text
 RootPane
   sgpo_root
+    sgpo_pro_lt
+    sgpo_pro_lb
+    sgpo_pro_rt
+    sgpo_pro_rb
+    sgpo_pro_minus
+    sgpo_pro_plus
+    sgpo_pro_l3
+    sgpo_pro_r3
+    sgpo_pro_ls_gate
+    sgpo_pro_ls_dot
+    sgpo_pro_rs_gate
+    sgpo_pro_rs_dot
+    sgpo_pro_du
+    sgpo_pro_dd
+    sgpo_pro_dl
+    sgpo_pro_dr
+    sgpo_pro_dul
+    sgpo_pro_dur
+    sgpo_pro_ddl
+    sgpo_pro_ddr
+    sgpo_pro_btn_y
+    sgpo_pro_btn_x
+    sgpo_pro_btn_b
     sgpo_pro_a_marker
 ```
 
-The Rust renderer should then:
+Notes:
 
-- Search `info_melee` for `sgpo_pro_a_marker`.
-- Set it visible.
-- Update alpha and scale from `ControllerViewState` when A is pressed/released.
-- Leave DebugText fallback intact if the pane is missing.
+1. `sgpo_pro_a_marker` keeps the previously tested A-button name.
+2. The other panes use short names because BFLYT pane names are limited.
+3. All visual children are cloned `Picture` panes from `set_rep_stock_01`.
+4. No BFLAN animations are added.
+5. No names referenced by existing BFLANs are reused.
+
+This gives the Rust plugin real Smash UI panes to find and update:
+
+The Rust renderer:
+
+- Searches `info_melee` for `sgpo_root`.
+- Iterates the built-in `SkinElement` table.
+- Sets each pane visible.
+- Updates alpha, scale, and position from `ControllerViewState`.
+- Leaves DebugText fallback intact if the pane is missing.
 
 ## Later Visual HUD Expansion
 
-After one static marker is confirmed stable on Switch and emulator, extend the same `sgpo_root` with unique picture panes:
-
-- `sgpo_btn_a`, `sgpo_btn_b`, `sgpo_btn_x`, `sgpo_btn_y`
-- `sgpo_btn_l`, `sgpo_btn_r`, `sgpo_btn_zl`, `sgpo_btn_zr`
-- `sgpo_btn_l3`, `sgpo_btn_r3`
-- `sgpo_left_gate`, `sgpo_left_dot`
-- `sgpo_right_gate`, `sgpo_right_dot`
-
-For a larger HUD, a separate `sgpo_controller.bflyt` inserted as a `Parts` pane may be cleaner. The direct root-child approach is better for the first stability test because it avoids modifying `layout.info`, creating a new BFLYT, or dealing with nested Parts traversal.
+For a more polished HUD, a separate `sgpo_controller.bflyt` inserted as a `Parts` pane may be cleaner. The direct root-child approach is still better for stability because it avoids modifying `layout.info`, creating a new BFLYT, or dealing with nested Parts traversal.
