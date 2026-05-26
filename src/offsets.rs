@@ -9,6 +9,8 @@ use crate::config::{
 use crate::logger::{hex_bytes, trace};
 
 pub(crate) static OFFSET_DRAW: LazyLock<Option<usize>> = LazyLock::new(resolve_draw_offset);
+pub(crate) static OFFSET_LAYOUT_ARC_MALLOC: LazyLock<Option<usize>> =
+    LazyLock::new(resolve_layout_arc_malloc_offset);
 
 // First instructions of nn::ui2d::Layout::Draw in Smash 13.0.1.
 static NEEDLE_DRAW: &[u8] = &[
@@ -16,8 +18,18 @@ static NEEDLE_DRAW: &[u8] = &[
     0xf4, 0x4f, 0x04, 0xa9, 0xfd, 0x7b, 0x05, 0xa9, 0xfd, 0x43, 0x01, 0x91, 0xf4, 0x03, 0x00, 0xaa,
 ];
 
+// Instructions at the decompressed layout.arc handoff used by Training Modpack/HDR on Smash 13.0.4.
+static NEEDLE_LAYOUT_ARC_MALLOC: &[u8] = &[
+    0xe3, 0xe6, 0x06, 0x94, 0xa0, 0x05, 0x00, 0xb4, 0xe1, 0x03, 0x15, 0xaa, 0xe2, 0x03, 0x17, 0xaa,
+];
+
 pub(crate) fn draw_hook_offset_for_install() -> usize {
     (*OFFSET_DRAW).expect("Layout::Draw offset checked before installing draw hook")
+}
+
+pub(crate) fn layout_arc_malloc_hook_offset_for_install() -> usize {
+    (*OFFSET_LAYOUT_ARC_MALLOC)
+        .expect("layout.arc malloc offset checked before installing layout injection hook")
 }
 
 fn resolve_draw_offset() -> Option<usize> {
@@ -36,6 +48,17 @@ fn resolve_draw_offset() -> Option<usize> {
     let offset = find_unique_text_offset("nn::ui2d::Layout::Draw", NEEDLE_DRAW);
     if offset.is_none() {
         log_draw_offset_diagnostics(NEEDLE_DRAW);
+    }
+
+    offset
+}
+
+fn resolve_layout_arc_malloc_offset() -> Option<usize> {
+    let offset = find_unique_text_offset("layout.arc malloc handoff", NEEDLE_LAYOUT_ARC_MALLOC);
+    if offset.is_none() {
+        trace(
+            "layout.arc injection hook will not be installed because its signature was not found",
+        );
     }
 
     offset

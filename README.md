@@ -14,8 +14,9 @@ The first milestone is intentionally small:
 - The `nn::ui2d::Layout::Draw` signature resolves to `.text+0x4b620` in the tested setup.
 - The overlay draws only while the match HUD layout, `info_melee`, is being rendered.
 - The overlay has two display modes: `Visual` and `DebugText`.
-- `Visual` mode is configured by default and is organized around a built-in skin named `minimal_gamecube`.
-- The visual renderer only updates non-text panes named by the active skin and falls back to `DebugText` while those panes do not exist.
+- `Visual` mode is configured by default and currently targets one Switch Pro Controller A marker named `sgpo_pro_a_marker`.
+- The visual marker comes from a modified `info_melee` `layout.arc` embedded at build time when `local-assets/modified/info_melee/layout.arc` exists.
+- Pressing A dims/brightens and scales the marker; missing injected panes fall back to `DebugText`.
 - If Training Modpack is installed at its standard Skyline plugin path, this plugin skips installing the draw hook to avoid a known hook/signature conflict.
 
 ## Requirements
@@ -38,6 +39,8 @@ Build a release NRO:
 ```sh
 cargo skyline build --release
 ```
+
+For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
 
 The release artifact is expected at:
 
@@ -67,7 +70,7 @@ This is useful when `cargo skyline listen` does not show output. The log records
 
 ## Known Limitations
 
-- The visual HUD needs a custom layout/BFLYT path that provides the pane names used by the built-in skin.
+- The visual HUD currently has one injected A-button marker. The rest of the controller HUD still needs panes added to the modified layout.
 - Training Modpack can conflict with this plugin's draw hook. Disable or move Training Modpack when testing this overlay.
 - The visual HUD is pane-based. It does not use custom textures yet.
 

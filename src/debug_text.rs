@@ -6,9 +6,9 @@ use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::{
-    DEBUG_TEXT_FONT_SIZE, DEBUG_TEXT_LINE_COUNT, DEBUG_TEXT_LINE_HEIGHT, DEBUG_TEXT_WIDTH,
-    MATCH_HUD_LAYOUT, MAX_OVERLAY_TEXT_PANES, OVERLAY_CONFIG, OVERLAY_LINE_TEXT_PANES,
-    P1_PARTS_PANE_NAME,
+    DEBUG_TEXT_FONT_SIZE, DEBUG_TEXT_LINE_COUNT, DEBUG_TEXT_LINE_HEIGHT, DEBUG_TEXT_POS_X,
+    DEBUG_TEXT_POS_Y, DEBUG_TEXT_WIDTH, MATCH_HUD_LAYOUT, MAX_OVERLAY_TEXT_PANES, OVERLAY_CONFIG,
+    OVERLAY_LINE_TEXT_PANES, P1_PARTS_PANE_NAME,
 };
 use crate::input::{button_names, gc_trigger_text, npad_id_name, style_name, ControllerSnapshot};
 use crate::logger::trace;
@@ -147,8 +147,8 @@ fn cstr_bytes_to_str(bytes: &[u8]) -> &str {
 
 unsafe fn position_debug_text(textbox: &mut TextBox, line_index: usize) {
     textbox.pane.set_visible(true);
-    textbox.pane.pos_x = OVERLAY_CONFIG.x;
-    textbox.pane.pos_y = OVERLAY_CONFIG.y - scaled(DEBUG_TEXT_LINE_HEIGHT * line_index as f32);
+    textbox.pane.pos_x = DEBUG_TEXT_POS_X;
+    textbox.pane.pos_y = DEBUG_TEXT_POS_Y - scaled(DEBUG_TEXT_LINE_HEIGHT * line_index as f32);
     textbox.pane.pos_z = 0.0;
     textbox.pane.scale_x = OVERLAY_CONFIG.scale;
     textbox.pane.scale_y = OVERLAY_CONFIG.scale;
