@@ -13,7 +13,9 @@ The first milestone is intentionally small:
 - Tested against Smash display version `13.0.4`.
 - The `nn::ui2d::Layout::Draw` signature resolves to `.text+0x4b620` in the tested setup.
 - The overlay draws only while the match HUD layout, `info_melee`, is being rendered.
-- On current tested layouts, only one reusable text pane is found, so the overlay appears as one compact line.
+- The overlay has two display modes: `Visual` and `DebugText`.
+- `Visual` mode is configured by default and is organized around a built-in skin named `minimal_gamecube`.
+- The visual renderer only updates non-text panes named by the active skin and falls back to `DebugText` while those panes do not exist.
 - If Training Modpack is installed at its standard Skyline plugin path, this plugin skips installing the draw hook to avoid a known hook/signature conflict.
 
 ## Requirements
@@ -61,14 +63,13 @@ The plugin writes a small diagnostic log to:
 sd:/smash-gamepad-overlay.log
 ```
 
-This is useful when `cargo skyline listen` does not show output. The log records startup, Smash display version, draw-hook resolution, whether `info_melee` was seen, and which text pane was reused.
+This is useful when `cargo skyline listen` does not show output. The log records startup, Smash display version, draw-hook resolution, whether `info_melee` was seen, and the active display path.
 
 ## Known Limitations
 
-- The overlay currently reuses existing Smash text panes instead of creating a custom layout.
-- Current testing finds one usable pane, so multi-line formatting usually collapses to one line.
+- The visual HUD needs a custom layout/BFLYT path that provides the pane names used by the built-in skin.
 - Training Modpack can conflict with this plugin's draw hook. Disable or move Training Modpack when testing this overlay.
-- The UI is a debug-style text overlay, not a polished controller graphic yet.
+- The visual HUD is pane-based. It does not use custom textures yet.
 
 ## Project Constraints
 
