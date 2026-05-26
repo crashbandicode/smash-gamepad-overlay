@@ -10,6 +10,14 @@
 # Runtime/debug logs
 /smash-gamepad-overlay.log
 
+# Local game dumps and extracted binary assets
+/data.arc
+/local-assets/
+
+# Python helper caches
+__pycache__/
+*.py[cod]
+
 # Editor and local tooling state
 .vscode/
 .idea/

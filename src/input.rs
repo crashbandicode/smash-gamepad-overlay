@@ -63,6 +63,37 @@ pub(crate) enum ControlId {
     GcRTrigger,
 }
 
+impl ControlId {
+    const ALL: [Self; 22] = [
+        Self::A,
+        Self::B,
+        Self::X,
+        Self::Y,
+        Self::L,
+        Self::R,
+        Self::ZL,
+        Self::ZR,
+        Self::L3,
+        Self::R3,
+        Self::Plus,
+        Self::Minus,
+        Self::DpadUp,
+        Self::DpadDown,
+        Self::DpadLeft,
+        Self::DpadRight,
+        Self::LeftStickGate,
+        Self::LeftStickDot,
+        Self::RightStickGate,
+        Self::RightStickDot,
+        Self::GcLTrigger,
+        Self::GcRTrigger,
+    ];
+}
+
+pub(crate) fn logical_control_count() -> usize {
+    ControlId::ALL.len()
+}
+
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ControlValue {
     pub pressed: bool,
@@ -79,6 +110,16 @@ pub(crate) struct ControllerViewState {
 }
 
 impl ControllerViewState {
+    pub(crate) fn neutral() -> Self {
+        Self {
+            buttons: 0,
+            left_stick: (0.0, 0.0),
+            right_stick: (0.0, 0.0),
+            gc_left_trigger: 0.0,
+            gc_right_trigger: 0.0,
+        }
+    }
+
     pub(crate) fn from_snapshot(snapshot: ControllerSnapshot) -> Self {
         let (gc_left_trigger, gc_right_trigger) = snapshot
             .gc_triggers

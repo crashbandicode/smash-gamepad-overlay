@@ -44,8 +44,8 @@ pub(crate) const P1_PARTS_PANE_NAME: &[u8] = b"p1\0";
 // Adjust these first when moving or resizing the overlay.
 pub(crate) const OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
-    x: -140.0,
-    y: 285.0,
+    x: 760.0,
+    y: -330.0,
     scale: 1.0,
     opacity: 255,
 };
@@ -58,6 +58,8 @@ pub(crate) fn configured_display_mode() -> DisplayMode {
 }
 
 pub(crate) const DEBUG_TEXT_WIDTH: f32 = 760.0;
+pub(crate) const DEBUG_TEXT_POS_X: f32 = -140.0;
+pub(crate) const DEBUG_TEXT_POS_Y: f32 = 285.0;
 pub(crate) const DEBUG_TEXT_FONT_SIZE: f32 = 16.0;
 pub(crate) const DEBUG_TEXT_LINE_HEIGHT: f32 = 19.0;
 

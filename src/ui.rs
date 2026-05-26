@@ -3,7 +3,7 @@ use skyline::nn::ui2d::{Layout, Pane, TextBox};
 use std::ffi::{CStr, CString};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::{configured_display_mode, DisplayMode, MATCH_HUD_LAYOUT};
+use crate::config::{configured_display_mode, DisplayMode};
 use crate::debug_text::draw_debug_text_overlay;
 use crate::input::ControllerSnapshot;
 use crate::logger::trace;
@@ -66,13 +66,21 @@ fn log_visual_fallback(error: VisualRenderError) {
     }
 
     match error {
-        VisualRenderError::ControllerNotReady => {
-            trace("visual mode fallback: controller state was not ready");
-        }
-        VisualRenderError::MissingSkinPane { skin_name } => {
+        VisualRenderError::MissingSkinPane {
+            skin_name,
+            pane_name,
+        } => {
             trace(&format!(
-                "visual mode fallback: skin '{skin_name}' panes are not present in {MATCH_HUD_LAYOUT}"
+                "visual mode fallback: skin '{skin_name}' pane '{}' is missing",
+                cstr_bytes_to_str(pane_name)
             ));
         }
     }
+}
+
+fn cstr_bytes_to_str(bytes: &[u8]) -> &str {
+    CStr::from_bytes_with_nul(bytes)
+        .ok()
+        .and_then(|name| name.to_str().ok())
+        .unwrap_or("<invalid>")
 }
