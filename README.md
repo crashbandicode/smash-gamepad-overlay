@@ -17,6 +17,7 @@ The first milestone is intentionally small:
 - `Visual` mode is configured by default and targets a minimal Switch Pro Controller pane skin under `sgpo_root`.
 - The visual panes come from a modified `info_melee` `layout.arc` embedded at build time when `local-assets/modified/info_melee/layout.arc` exists.
 - Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
+- Visual panes are resolved once per `info_melee` layout/root instance and then cached for per-frame updates.
 - If Training Modpack is installed at its standard Skyline plugin path, this plugin skips installing the draw hook to avoid a known hook/signature conflict.
 
 ## Requirements
@@ -103,6 +104,10 @@ This is useful when `cargo skyline listen` does not show output. The log records
 - The visual HUD is intentionally rough programmer art. It uses cloned picture panes, not custom textures or labels.
 - Training Modpack can conflict with this plugin's draw hook. Disable or move Training Modpack when testing this overlay.
 - The visual HUD is pane-based. It does not use custom textures yet.
+
+## Validation
+
+Before using a build as a new baseline, run through [Alpha Validation Checklist](docs/alpha-validation-checklist.md).
 
 ## Project Constraints
 

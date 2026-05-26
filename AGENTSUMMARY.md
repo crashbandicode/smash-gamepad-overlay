@@ -33,6 +33,9 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - `sgpo_pro_a_marker` keeps the previously tested A-button pane name.
 - Pressed buttons dim/brighten and scale; stick dots move from normalized stick positions.
 - `Visual` falls back to `DebugText` if injected panes are missing.
+- `visual::VisualRuntime` caches resolved `sgpo_root` and `SkinElement` pane pointers per `info_melee` layout/root pointer pair.
+- If the `info_melee` root changes, or cached pane metadata is not valid, the visual runtime re-resolves once for the new root.
+- If required visual panes are missing, the missing result is cached for that root and the UI path falls back to DebugText without repeated visual pane searches.
 - Skin abstraction added:
   - `ControlId`: logical controls/buttons/sticks/triggers.
   - `ControllerViewState`: maps `ControllerSnapshot` into pressed/released values plus normalized stick/trigger values.
@@ -113,6 +116,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Current working tree includes the injected `info_melee` visual marker path and patch tooling.
 - Public git should contain only Rust code, docs, and patch tooling. Do not commit `data.arc`, unpacked BFLYTs/BFLANs/BNTX, or modified `layout.arc`.
 - Release assets should not include `layout.arc`; the alpha NRO is built from the user's local patched layout.
+- `docs/alpha-validation-checklist.md` tracks the current manual alpha validation matrix.
 - Local/editor/generated files are ignored:
   - `target/`
   - `data.arc`
@@ -144,5 +148,6 @@ sd:/smash-gamepad-overlay.log
 ## Likely Next Steps
 
 - Polish the programmer-art visual layout after more Switch/emulator testing.
+- Run the alpha validation checklist after cache/layout changes.
 - Keep the A marker as the rollback/stability baseline.
 - Keep Switch testing conservative; text-box flag changes can freeze at match start.
