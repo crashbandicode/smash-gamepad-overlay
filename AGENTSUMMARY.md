@@ -28,15 +28,16 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Has two display modes:
   - `DebugText`: original compact troubleshooting text.
   - `Visual`: skin-driven generic pane renderer.
-- `Visual` currently targets a single injected Switch Pro Controller A marker named `sgpo_pro_a_marker`.
-- The modified match layout provides `sgpo_root -> sgpo_pro_a_marker`.
-- Pressing A dims/brightens and scales the marker; released A is dim.
+- `Visual` targets a minimal full Switch Pro Controller pane skin under `sgpo_root`.
+- The modified match layout provides 24 child `sgpo_pro_*` picture panes for face buttons, shoulders/triggers, stick clicks, plus/minus, d-pad cardinals/diagonals, stick gates, and stick dots.
+- `sgpo_pro_a_marker` keeps the previously tested A-button pane name.
+- Pressed buttons dim/brighten and scale; stick dots move from normalized stick positions.
 - `Visual` falls back to `DebugText` if injected panes are missing.
 - Skin abstraction added:
   - `ControlId`: logical controls/buttons/sticks/triggers.
   - `ControllerViewState`: maps `ControllerSnapshot` into pressed/released values plus normalized stick/trigger values.
   - `SkinElement`: maps a control to a pane name, base position, size, alpha/visibility states, and optional stick movement radius.
-  - Built-in skin: `minimal_pro_controller_a_button`.
+  - Built-in skin: `minimal_pro_controller_full`.
 - Writes diagnostics to `sd:/smash-gamepad-overlay.log`.
 
 ## Tested Context
@@ -49,7 +50,8 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Emulator test showed live-pane visual rendering worked, but it reused real HUD panes and surfaced Hero MP/other P1 UI.
 - Cloned root-level panes then froze emulator at the VS screen after logging `sgpo_*` slots, so that approach was removed from the active renderer.
 - Current visual renderer no longer reuses live HUD text panes or cloned textboxes. It only updates generic panes by skin pane name.
-- Current injected-pane visual path was tested by the user: a white square appears and dims/brightens as expected when A is pressed/released.
+- Injected-pane visual path was tested by the user with the A marker: a white square appears and dims/brightens as expected when A is pressed/released.
+- Expanded full Pro Controller visual skin was tested by the user and worked.
 
 ## Issues Encountered
 
@@ -60,6 +62,38 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Attached Joy-Cons initially reported as controller not ready; fallback polling for handheld Npad ID was added.
 - Multi-pane visual rendering originally reused live HUD panes. That caused Hero MP gauge visibility and a Switch freeze.
 - Cloning and appending textboxes also froze emulator, likely because raw `TextBox` cloning bypasses Smash/ui2d construction ownership.
+
+## Layout Tooling And Pane Injection
+
+- The user dumped `data.arc` locally. It is ignored and should not be committed.
+- `smash-arc` was used to extract:
+  - `ui/layout/info/info_melee/info_melee/layout.arc`
+- Python `sarc` was used to unpack/repack the layout SARC:
+  - unpacked original: `local-assets/original/info_melee/unpacked/`
+  - modified output: `local-assets/modified/info_melee/layout.arc`
+- `python -m sarc list/extract/create` plus small Python BFLYT inspection scripts were used to inspect `blyt/*.bflyt`, `anim/*.bflan`, and pane section counts.
+- `strings`/`rg` were used to confirm injected pane names in the modified BFLYT.
+- `docs/info-melee-layout-notes.md` records the discovered `info_melee` root layout structure and expected SGPO pane names.
+- `tools/patch_info_melee_layout.py` performs the reproducible local patch:
+  - copies the original unpacked layout tree to `local-assets/modified/info_melee/unpacked/`;
+  - patches only `blyt/info_melee.bflyt`;
+  - clones the existing `RootPane` as `sgpo_root`;
+  - clones `set_rep_stock_01` picture panes as the programmer-art SGPO visual elements;
+  - inserts `sgpo_root` before the root close section;
+  - adds 24 child `sgpo_pro_*` picture panes under `sgpo_root`;
+  - avoids BFLAN animation edits, `layout.info` edits, external skin files, and runtime pane allocation.
+- Current custom pane tree:
+  - `sgpo_root`
+  - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`
+  - `sgpo_pro_minus`, `sgpo_pro_plus`
+  - `sgpo_pro_l3`, `sgpo_pro_r3`
+  - `sgpo_pro_ls_gate`, `sgpo_pro_ls_dot`
+  - `sgpo_pro_rs_gate`, `sgpo_pro_rs_dot`
+  - `sgpo_pro_du`, `sgpo_pro_dd`, `sgpo_pro_dl`, `sgpo_pro_dr`
+  - `sgpo_pro_dul`, `sgpo_pro_dur`, `sgpo_pro_ddl`, `sgpo_pro_ddr`
+  - `sgpo_pro_btn_y`, `sgpo_pro_btn_x`, `sgpo_pro_btn_b`, `sgpo_pro_a_marker`
+- `sgpo_pro_a_marker` intentionally keeps the first known-good A-button pane name.
+- `build.rs` embeds `local-assets/modified/info_melee/layout.arc` into the NRO if present, but `local-assets/` and `data.arc` stay ignored.
 
 ## Relevant Offsets And Sources
 
@@ -77,6 +111,8 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Tag `latest` was pushed at `9837b0e`.
 - GitHub CLI is now set up in the user's environment.
 - Current working tree includes the injected `info_melee` visual marker path and patch tooling.
+- Public git should contain only Rust code, docs, and patch tooling. Do not commit `data.arc`, unpacked BFLYTs/BFLANs/BNTX, or modified `layout.arc`.
+- Release assets should not include `layout.arc`; the alpha NRO is built from the user's local patched layout.
 - Local/editor/generated files are ignored:
   - `target/`
   - `data.arc`
@@ -107,7 +143,6 @@ sd:/smash-gamepad-overlay.log
 
 ## Likely Next Steps
 
-- Add more injected `sgpo_*` panes for B/X/Y, shoulders, sticks, and dpad.
-- Expand `minimal_pro_controller_a_button` into a full Pro Controller visual skin.
-- Keep the one-pane A marker as the rollback/stability baseline.
+- Polish the programmer-art visual layout after more Switch/emulator testing.
+- Keep the A marker as the rollback/stability baseline.
 - Keep Switch testing conservative; text-box flag changes can freeze at match start.

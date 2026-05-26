@@ -55,6 +55,10 @@ pub(crate) enum ControlId {
     DpadDown,
     DpadLeft,
     DpadRight,
+    DpadUpLeft,
+    DpadUpRight,
+    DpadDownLeft,
+    DpadDownRight,
     LeftStickGate,
     LeftStickDot,
     RightStickGate,
@@ -64,7 +68,7 @@ pub(crate) enum ControlId {
 }
 
 impl ControlId {
-    const ALL: [Self; 22] = [
+    const ALL: [Self; 26] = [
         Self::A,
         Self::B,
         Self::X,
@@ -81,6 +85,10 @@ impl ControlId {
         Self::DpadDown,
         Self::DpadLeft,
         Self::DpadRight,
+        Self::DpadUpLeft,
+        Self::DpadUpRight,
+        Self::DpadDownLeft,
+        Self::DpadDownRight,
         Self::LeftStickGate,
         Self::LeftStickDot,
         Self::RightStickGate,
@@ -153,6 +161,10 @@ impl ControllerViewState {
             ControlId::DpadDown => self.button_value(BUTTON_DDOWN),
             ControlId::DpadLeft => self.button_value(BUTTON_DLEFT),
             ControlId::DpadRight => self.button_value(BUTTON_DRIGHT),
+            ControlId::DpadUpLeft => self.combined_button_value(BUTTON_DUP, BUTTON_DLEFT),
+            ControlId::DpadUpRight => self.combined_button_value(BUTTON_DUP, BUTTON_DRIGHT),
+            ControlId::DpadDownLeft => self.combined_button_value(BUTTON_DDOWN, BUTTON_DLEFT),
+            ControlId::DpadDownRight => self.combined_button_value(BUTTON_DDOWN, BUTTON_DRIGHT),
             ControlId::LeftStickGate | ControlId::RightStickGate => ControlValue {
                 pressed: false,
                 analog: 0.0,
@@ -174,6 +186,14 @@ impl ControllerViewState {
 
     fn button_value(&self, mask: u64) -> ControlValue {
         let pressed = self.buttons & mask != 0;
+        ControlValue {
+            pressed,
+            analog: if pressed { 1.0 } else { 0.0 },
+        }
+    }
+
+    fn combined_button_value(&self, first_mask: u64, second_mask: u64) -> ControlValue {
+        let pressed = self.buttons & first_mask != 0 && self.buttons & second_mask != 0;
         ControlValue {
             pressed,
             analog: if pressed { 1.0 } else { 0.0 },

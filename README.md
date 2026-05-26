@@ -14,9 +14,9 @@ The first milestone is intentionally small:
 - The `nn::ui2d::Layout::Draw` signature resolves to `.text+0x4b620` in the tested setup.
 - The overlay draws only while the match HUD layout, `info_melee`, is being rendered.
 - The overlay has two display modes: `Visual` and `DebugText`.
-- `Visual` mode is configured by default and currently targets one Switch Pro Controller A marker named `sgpo_pro_a_marker`.
-- The visual marker comes from a modified `info_melee` `layout.arc` embedded at build time when `local-assets/modified/info_melee/layout.arc` exists.
-- Pressing A dims/brightens and scales the marker; missing injected panes fall back to `DebugText`.
+- `Visual` mode is configured by default and targets a minimal Switch Pro Controller pane skin under `sgpo_root`.
+- The visual panes come from a modified `info_melee` `layout.arc` embedded at build time when `local-assets/modified/info_melee/layout.arc` exists.
+- Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
 - If Training Modpack is installed at its standard Skyline plugin path, this plugin skips installing the draw hook to avoid a known hook/signature conflict.
 
 ## Requirements
@@ -41,6 +41,36 @@ cargo skyline build --release
 ```
 
 For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
+
+The patched `info_melee` layout is expected to contain:
+
+```text
+sgpo_root
+  sgpo_pro_lt
+  sgpo_pro_lb
+  sgpo_pro_rt
+  sgpo_pro_rb
+  sgpo_pro_minus
+  sgpo_pro_plus
+  sgpo_pro_l3
+  sgpo_pro_r3
+  sgpo_pro_ls_gate
+  sgpo_pro_ls_dot
+  sgpo_pro_rs_gate
+  sgpo_pro_rs_dot
+  sgpo_pro_du
+  sgpo_pro_dd
+  sgpo_pro_dl
+  sgpo_pro_dr
+  sgpo_pro_dul
+  sgpo_pro_dur
+  sgpo_pro_ddl
+  sgpo_pro_ddr
+  sgpo_pro_btn_y
+  sgpo_pro_btn_x
+  sgpo_pro_btn_b
+  sgpo_pro_a_marker
+```
 
 The release artifact is expected at:
 
@@ -70,7 +100,7 @@ This is useful when `cargo skyline listen` does not show output. The log records
 
 ## Known Limitations
 
-- The visual HUD currently has one injected A-button marker. The rest of the controller HUD still needs panes added to the modified layout.
+- The visual HUD is intentionally rough programmer art. It uses cloned picture panes, not custom textures or labels.
 - Training Modpack can conflict with this plugin's draw hook. Disable or move Training Modpack when testing this overlay.
 - The visual HUD is pane-based. It does not use custom textures yet.
 

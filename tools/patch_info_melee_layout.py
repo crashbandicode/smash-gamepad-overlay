@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add a minimal SGPO visual marker pane to an unpacked info_melee layout.
+"""Add SGPO Pro Controller visual panes to an unpacked info_melee layout.
 
 This patches only `blyt/info_melee.bflyt`. It does not repack the SARC; use the
 Python `sarc` package after running this script.
@@ -14,12 +14,38 @@ from pathlib import Path
 
 
 ROOT_PANE_NAME = "sgpo_root"
-MARKER_PANE_NAME = "sgpo_pro_a_marker"
 
 SGPO_ROOT_POS = (760.0, -330.0, 0.0)
-SGPO_ROOT_SIZE = (220.0, 160.0)
-MARKER_POS = (0.0, 0.0, 0.0)
-MARKER_SIZE = (28.0, 28.0)
+SGPO_ROOT_SIZE = (360.0, 300.0)
+
+# Keep these names in sync with src/skin.rs. The A marker keeps its previously
+# tested name to avoid changing the known-good hardware path.
+PANE_SPECS = [
+    ("sgpo_pro_lt", (-145.0, 122.0, 0.0), (54.0, 20.0)),
+    ("sgpo_pro_lb", (-145.0, 95.0, 0.0), (54.0, 20.0)),
+    ("sgpo_pro_rt", (65.0, 122.0, 0.0), (54.0, 20.0)),
+    ("sgpo_pro_rb", (65.0, 95.0, 0.0), (54.0, 20.0)),
+    ("sgpo_pro_minus", (-38.0, 45.0, 0.0), (20.0, 20.0)),
+    ("sgpo_pro_plus", (20.0, 45.0, 0.0), (20.0, 20.0)),
+    ("sgpo_pro_l3", (-68.0, -30.0, 0.0), (18.0, 18.0)),
+    ("sgpo_pro_r3", (62.0, -100.0, 0.0), (18.0, 18.0)),
+    ("sgpo_pro_ls_gate", (-105.0, -30.0, 0.0), (58.0, 58.0)),
+    ("sgpo_pro_ls_dot", (-105.0, -30.0, 0.0), (14.0, 14.0)),
+    ("sgpo_pro_rs_gate", (30.0, -100.0, 0.0), (58.0, 58.0)),
+    ("sgpo_pro_rs_dot", (30.0, -100.0, 0.0), (14.0, 14.0)),
+    ("sgpo_pro_du", (-105.0, -78.0, 0.0), (16.0, 16.0)),
+    ("sgpo_pro_dd", (-105.0, -128.0, 0.0), (16.0, 16.0)),
+    ("sgpo_pro_dl", (-130.0, -103.0, 0.0), (16.0, 16.0)),
+    ("sgpo_pro_dr", (-80.0, -103.0, 0.0), (16.0, 16.0)),
+    ("sgpo_pro_dul", (-130.0, -78.0, 0.0), (13.0, 13.0)),
+    ("sgpo_pro_dur", (-80.0, -78.0, 0.0), (13.0, 13.0)),
+    ("sgpo_pro_ddl", (-130.0, -128.0, 0.0), (13.0, 13.0)),
+    ("sgpo_pro_ddr", (-80.0, -128.0, 0.0), (13.0, 13.0)),
+    ("sgpo_pro_btn_y", (15.0, -20.0, 0.0), (24.0, 24.0)),
+    ("sgpo_pro_btn_x", (45.0, 10.0, 0.0), (24.0, 24.0)),
+    ("sgpo_pro_btn_b", (45.0, -50.0, 0.0), (24.0, 24.0)),
+    ("sgpo_pro_a_marker", (75.0, -20.0, 0.0), (28.0, 28.0)),
+]
 
 
 def read_u32(data: bytes | bytearray, offset: int) -> int:
@@ -79,6 +105,19 @@ def set_pane_transform(
     write_f32(section, base + 0x48, size[1])
 
 
+def make_picture_pane(
+    source: bytes | bytearray,
+    name: str,
+    pos: tuple[float, float, float],
+    size: tuple[float, float],
+) -> bytearray:
+    pane = bytearray(source)
+    set_pane_name(pane, name)
+    set_pane_alpha(pane, 255)
+    set_pane_transform(pane, pos, size)
+    return pane
+
+
 def iter_sections(data: bytes | bytearray):
     offset = header_size(data)
     while offset + 8 <= len(data):
@@ -124,9 +163,19 @@ def patch_bflyt(path: Path) -> None:
         raise ValueError(f"not a BFLYT file: {path}")
     if file_size(data) != len(data):
         raise ValueError(f"BFLYT header size does not match file length for {path}")
-    if MARKER_PANE_NAME.encode("ascii") in data:
-        print(f"{MARKER_PANE_NAME} already present; leaving {path} unchanged")
+    pane_names = [name for name, _pos, _size in PANE_SPECS]
+    expected_names = [ROOT_PANE_NAME, *pane_names]
+    present_names = [
+        name for name in expected_names if name.encode("ascii") + b"\0" in data
+    ]
+    if len(present_names) == len(expected_names):
+        print(f"all SGPO Pro Controller panes already present; leaving {path} unchanged")
         return
+    if present_names:
+        raise ValueError(
+            "source layout already contains a partial SGPO patch; "
+            "use an unpatched source or regenerate local-assets/original"
+        )
 
     root_offset, root_size = find_section_by_pane_name(data, b"pan1", "RootPane")
     stock_offset, stock_size = find_section_by_pane_name(data, b"pic1", "set_rep_stock_01")
@@ -136,24 +185,25 @@ def patch_bflyt(path: Path) -> None:
     set_pane_alpha(sgpo_root, 255)
     set_pane_transform(sgpo_root, SGPO_ROOT_POS, SGPO_ROOT_SIZE)
 
-    marker = bytearray(data[stock_offset : stock_offset + stock_size])
-    set_pane_name(marker, MARKER_PANE_NAME)
-    set_pane_alpha(marker, 255)
-    set_pane_transform(marker, MARKER_POS, MARKER_SIZE)
+    marker_source = data[stock_offset : stock_offset + stock_size]
 
     pas1 = b"pas1" + struct.pack("<I", 8)
     pae1 = b"pae1" + struct.pack("<I", 8)
-    inserted = sgpo_root + pas1 + marker + pae1
+    markers = b"".join(
+        make_picture_pane(marker_source, name, pos, size)
+        for name, pos, size in PANE_SPECS
+    )
+    inserted = sgpo_root + pas1 + markers + pae1
 
     insert_offset = find_root_close_offset(data)
     patched = data[:insert_offset] + inserted + data[insert_offset:]
 
     write_u32(patched, 0x0C, len(patched))
-    write_u16(patched, 0x10, section_count(data) + 4)
+    write_u16(patched, 0x10, section_count(data) + len(PANE_SPECS) + 3)
     path.write_bytes(patched)
 
     print(
-        f"inserted {ROOT_PANE_NAME}/{MARKER_PANE_NAME} into {path} "
+        f"inserted {ROOT_PANE_NAME} with {len(PANE_SPECS)} visual panes into {path} "
         f"at 0x{insert_offset:x}"
     )
 
