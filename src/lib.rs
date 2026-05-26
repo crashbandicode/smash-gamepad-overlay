@@ -38,7 +38,7 @@ unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u6
                 ));
             }
 
-            draw_overlay((*layout).root_pane, poll_p1_controller());
+            draw_overlay(layout, (*layout).root_pane, poll_p1_controller());
         }
     }
 

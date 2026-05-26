@@ -29,7 +29,11 @@ pub(crate) unsafe fn layout_name_is(layout: *const Layout, expected: &str) -> bo
         .unwrap_or(false)
 }
 
-pub(crate) unsafe fn draw_overlay(root_pane: *mut Pane, snapshot: Option<ControllerSnapshot>) {
+pub(crate) unsafe fn draw_overlay(
+    layout: *mut Layout,
+    root_pane: *mut Pane,
+    snapshot: Option<ControllerSnapshot>,
+) {
     if root_pane.is_null() {
         return;
     }
@@ -42,7 +46,7 @@ pub(crate) unsafe fn draw_overlay(root_pane: *mut Pane, snapshot: Option<Control
     match display_mode {
         DisplayMode::DebugText => draw_debug_text_overlay(root_pane, snapshot),
         DisplayMode::Visual => {
-            if let Err(error) = render_visual_overlay(root_pane, snapshot) {
+            if let Err(error) = render_visual_overlay(layout, root_pane, snapshot) {
                 log_visual_fallback(error);
                 draw_debug_text_overlay(root_pane, snapshot);
             }
