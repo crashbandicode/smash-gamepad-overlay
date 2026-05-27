@@ -5,16 +5,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::input::ControllerViewState;
 use crate::logger::trace;
+use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
 use crate::skin::{BuiltInSkin, ACTIVE_SKIN};
 use crate::visual::{
-    hide_visual_skin_root, pane_name_matches, update_visual_skin_pane,
-    update_visual_skin_root_with_config, validate_skin_size, VisualRenderError,
-    MAX_RESOLVED_SKIN_ELEMENTS,
+    hide_visual_skin_root, update_visual_skin_pane, update_visual_skin_root_with_config,
+    validate_skin_size, VisualRenderError, MAX_RESOLVED_SKIN_ELEMENTS,
 };
 
-use super::capture::{
-    cstr_bytes_to_str, find_pane_in_layout_data, CapturedHudLayout, HudLayoutKind,
-};
+use super::capture::{find_pane_in_layout_data, CapturedHudLayout, HudLayoutKind};
 
 const HUD_CACHE_SLOTS: usize = 3;
 
@@ -37,6 +35,24 @@ enum HudCache {
         layout_kind: HudLayoutKind,
         skin_name: &'static str,
     },
+}
+
+impl HudCache {
+    fn cache_key(&self) -> Option<(u64, HudLayoutKind, &'static str)> {
+        match *self {
+            HudCache::Empty => None,
+            HudCache::Resolved(resolved) => Some((
+                resolved.layout_data,
+                resolved.layout_kind,
+                resolved.skin_name,
+            )),
+            HudCache::Missing {
+                layout_data,
+                layout_kind,
+                skin_name,
+            } => Some((layout_data, layout_kind, skin_name)),
+        }
+    }
 }
 
 struct HudVisualRuntime {
@@ -155,23 +171,10 @@ impl HudVisualRuntime {
     }
 
     fn has_cache_for(&self, captured: CapturedHudLayout, skin: &BuiltInSkin) -> bool {
-        self.caches.iter().any(|cache| match *cache {
-            HudCache::Empty => false,
-            HudCache::Resolved(resolved) => {
-                resolved.layout_data == captured.layout_data
-                    && resolved.layout_kind == captured.kind
-                    && resolved.skin_name == skin.name
-            }
-            HudCache::Missing {
-                layout_data: cached_layout_data,
-                layout_kind: cached_layout_kind,
-                skin_name,
-            } => {
-                cached_layout_data == captured.layout_data
-                    && cached_layout_kind == captured.kind
-                    && skin_name == skin.name
-            }
-        })
+        let request = (captured.layout_data, captured.kind, skin.name);
+        self.caches
+            .iter()
+            .any(|cache| cache.cache_key() == Some(request))
     }
 
     fn has_valid_match_root(&self) -> bool {
@@ -303,32 +306,27 @@ fn log_capture_miss(error: VisualRenderError) {
         VisualRenderError::MissingSkinPane {
             skin_name,
             pane_name,
-        } => trace(&format!(
-            "non-draw HUD path could not find skin '{skin_name}' pane '{}'",
-            cstr_bytes_to_str(pane_name)
-        )),
-        VisualRenderError::SkinTooLarge {
-            skin_name,
-            element_count,
-            max_elements,
-        } => trace(&format!(
-            "non-draw HUD path cannot use skin '{skin_name}' because it has {element_count} elements; max supported is {max_elements}"
-        )),
-    }
-
-    match error {
-        VisualRenderError::MissingSkinPane { pane_name, .. } => {
+        } => {
+            let pane = cstr_bytes_to_str(pane_name);
             trace(&format!(
-                "skin/layout mismatch: active skin '{}' missing first pane '{}'; expected layout flavor: {}",
-                ACTIVE_SKIN.name,
-                cstr_bytes_to_str(pane_name),
-                ACTIVE_SKIN.expected_layout_flavor
+                "non-draw HUD path could not find skin '{skin_name}' pane '{pane}'"
+            ));
+            trace(&format!(
+                "skin/layout mismatch: active skin '{}' missing first pane '{pane}'; expected layout flavor: {}",
+                ACTIVE_SKIN.name, ACTIVE_SKIN.expected_layout_flavor
             ));
             trace(
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
             );
         }
-        VisualRenderError::SkinTooLarge { .. } => {
+        VisualRenderError::SkinTooLarge {
+            skin_name,
+            element_count,
+            max_elements,
+        } => {
+            trace(&format!(
+                "non-draw HUD path cannot use skin '{skin_name}' because it has {element_count} elements; max supported is {max_elements}"
+            ));
             trace("split the skin or raise MAX_RESOLVED_SKIN_ELEMENTS before activating it");
         }
     }

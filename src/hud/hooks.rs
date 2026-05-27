@@ -6,7 +6,7 @@ use crate::config::{
     HIDE_TRAINING_GAMEPAD_FLAG_PATH, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET,
     HUD_SET_INFO_ALPHA_OFFSET, SCENE_UPDATE_OFFSET,
 };
-use crate::input::{poll_p1_controller, ControllerViewState};
+use crate::input::poll_view_state_now;
 use crate::logger::trace;
 use crate::offsets::display_version;
 
@@ -41,9 +41,7 @@ unsafe fn capture_match_hud_layout_data(ctx: &InlineCtx) {
     let training_mode = training_mode_active();
     cache::capture_runtime(captured);
 
-    let view_state = poll_p1_controller()
-        .map(ControllerViewState::from_snapshot)
-        .unwrap_or_else(ControllerViewState::neutral);
+    let view_state = poll_view_state_now();
     if cache::update_runtime(&view_state, training_mode)
         && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
     {
@@ -62,9 +60,7 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
         return;
     }
 
-    let view_state = poll_p1_controller()
-        .map(ControllerViewState::from_snapshot)
-        .unwrap_or_else(ControllerViewState::neutral);
+    let view_state = poll_view_state_now();
     if cache::update_runtime(&view_state, training_mode_active())
         && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
     {

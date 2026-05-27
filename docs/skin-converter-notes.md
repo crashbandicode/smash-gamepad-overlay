@@ -28,3 +28,40 @@ The converter should:
 - keep generated `layout.arc`, extracted BFLYT/BFLAN/BNTX assets, and game dumps out of git.
 
 The plugin should only require the generated panes to already exist.
+
+## Dry-Run Pipeline
+
+The first converter milestone is metadata-only:
+
+```bash
+python tools/analyze_retrospy_skin.py
+```
+
+Provide a RetroSpy skin directory either with `--skin-dir` or with
+`SGPO_RETROSPY_SKIN_DIR` in `.env`:
+
+```bash
+python tools/analyze_retrospy_skin.py --skin-dir "/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt"
+```
+
+It writes repo-safe planning artifacts only:
+
+- `target/skin-analysis/switch-pro-alt.md`: parsed control report and comparison against `switch_pro_alt_builtin`.
+- `target/skin-build/switch-pro-alt/skin_manifest.json`: generated dry-run skin manifest.
+- `target/skin-build/switch-pro-alt/skin_manifest.md`: human-readable manifest summary.
+
+The manifest contains one entry per mapped control:
+
+- `ControlId`
+- pane name
+- image filename
+- generated material name
+- source x/y and centered Smash base x/y
+- width/height
+- pressed/released alpha defaults
+- pressed/released scale defaults
+- optional stick movement range
+
+The tool validates that the generated manifest exactly matches the inactive
+`switch_pro_alt_builtin` Rust target. It does not copy PNGs, generate
+Nintendo layout assets, or write a modified `layout.arc`.

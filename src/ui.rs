@@ -7,6 +7,7 @@ use crate::config::{configured_display_mode, DisplayMode};
 use crate::debug_text::draw_debug_text_overlay;
 use crate::input::ControllerSnapshot;
 use crate::logger::trace;
+use crate::pane_utils::cstr_bytes_to_str;
 use crate::skin::ACTIVE_SKIN;
 use crate::visual::{render_visual_overlay, VisualRenderError};
 
@@ -100,11 +101,4 @@ fn log_visual_fallback(error: VisualRenderError) {
             trace("split the skin or raise MAX_RESOLVED_SKIN_ELEMENTS before activating it");
         }
     }
-}
-
-fn cstr_bytes_to_str(bytes: &[u8]) -> &str {
-    CStr::from_bytes_with_nul(bytes)
-        .ok()
-        .and_then(|name| name.to_str().ok())
-        .unwrap_or("<invalid>")
 }

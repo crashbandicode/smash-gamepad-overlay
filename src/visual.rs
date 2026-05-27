@@ -1,13 +1,13 @@
 use skyline::hooks::InlineCtx;
 use skyline::nn::ui2d::{Layout, Pane, PaneFlag};
 use std::cell::UnsafeCell;
-use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::{OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
+use crate::pane_utils::pane_name_matches;
 use crate::skin::{BuiltInSkin, SkinElement, ACTIVE_SKIN};
 use crate::ui::find_pane_by_name;
 
@@ -49,13 +49,12 @@ enum VisualCache {
     },
 }
 
-struct VisualRuntime {
-    cache: VisualCache,
-}
+struct VisualCacheCell(UnsafeCell<VisualCache>);
 
-struct VisualRuntimeCell(UnsafeCell<VisualRuntime>);
-
-unsafe impl Sync for VisualRuntimeCell {}
+// The draw hook touches this cache from Smash's UI draw path; lifecycle reset
+// hooks can also touch it from match-start/end. All access is serialized via
+// VISUAL_RUNTIME_LOCK.
+unsafe impl Sync for VisualCacheCell {}
 
 struct VisualRuntimeGuard;
 
@@ -78,78 +77,64 @@ impl Drop for VisualRuntimeGuard {
     }
 }
 
-impl VisualRuntime {
-    const fn new() -> Self {
-        Self {
-            cache: VisualCache::Empty,
+unsafe fn render_into_cache(
+    cache: &mut VisualCache,
+    layout: *mut Layout,
+    layout_root: *mut Pane,
+    skin: &'static BuiltInSkin,
+    state: &ControllerViewState,
+) -> Result<(), VisualRenderError> {
+    match *cache {
+        VisualCache::Resolved(mut resolved) if resolved.is_valid_for(layout, layout_root, skin) => {
+            update_resolved_skin(&mut resolved, skin, state);
+            *cache = VisualCache::Resolved(resolved);
+            Ok(())
+        }
+        VisualCache::Missing {
+            layout: cached_layout,
+            layout_root: cached_layout_root,
+            skin_name,
+            error,
+        } if cached_layout == layout
+            && cached_layout_root == layout_root
+            && skin_name == skin.name =>
+        {
+            Err(error)
+        }
+        _ => {
+            *cache = VisualCache::Empty;
+            resolve_into_cache(cache, layout, layout_root, skin, state)
         }
     }
+}
 
-    unsafe fn render(
-        &mut self,
-        layout: *mut Layout,
-        layout_root: *mut Pane,
-        skin: &'static BuiltInSkin,
-        state: &ControllerViewState,
-    ) -> Result<(), VisualRenderError> {
-        match self.cache {
-            VisualCache::Resolved(mut resolved)
-                if resolved.is_valid_for(layout, layout_root, skin) =>
-            {
-                update_resolved_skin(&mut resolved, skin, state);
-                self.cache = VisualCache::Resolved(resolved);
-                Ok(())
+unsafe fn resolve_into_cache(
+    cache: &mut VisualCache,
+    layout: *mut Layout,
+    layout_root: *mut Pane,
+    skin: &'static BuiltInSkin,
+    state: &ControllerViewState,
+) -> Result<(), VisualRenderError> {
+    match resolve_skin(layout, layout_root, skin) {
+        Ok(mut resolved) => {
+            update_resolved_skin(&mut resolved, skin, state);
+            *cache = VisualCache::Resolved(resolved);
+
+            if !VISUAL_PANES_LOGGED.swap(true, Ordering::Relaxed) {
+                trace(&format!("visual mode using injected skin '{}'", skin.name));
             }
-            VisualCache::Missing {
-                layout: cached_layout,
-                layout_root: cached_layout_root,
-                skin_name,
+
+            Ok(())
+        }
+        Err(error) => {
+            *cache = VisualCache::Missing {
+                layout,
+                layout_root,
+                skin_name: skin.name,
                 error,
-            } if cached_layout == layout
-                && cached_layout_root == layout_root
-                && skin_name == skin.name =>
-            {
-                Err(error)
-            }
-            _ => {
-                self.cache = VisualCache::Empty;
-                self.resolve_and_render(layout, layout_root, skin, state)
-            }
+            };
+            Err(error)
         }
-    }
-
-    unsafe fn resolve_and_render(
-        &mut self,
-        layout: *mut Layout,
-        layout_root: *mut Pane,
-        skin: &'static BuiltInSkin,
-        state: &ControllerViewState,
-    ) -> Result<(), VisualRenderError> {
-        match resolve_skin(layout, layout_root, skin) {
-            Ok(mut resolved) => {
-                update_resolved_skin(&mut resolved, skin, state);
-                self.cache = VisualCache::Resolved(resolved);
-
-                if !VISUAL_PANES_LOGGED.swap(true, Ordering::Relaxed) {
-                    trace(&format!("visual mode using injected skin '{}'", skin.name));
-                }
-
-                Ok(())
-            }
-            Err(error) => {
-                self.cache = VisualCache::Missing {
-                    layout,
-                    layout_root,
-                    skin_name: skin.name,
-                    error,
-                };
-                Err(error)
-            }
-        }
-    }
-
-    fn reset(&mut self) {
-        self.cache = VisualCache::Empty;
     }
 }
 
@@ -199,18 +184,22 @@ impl ResolvedSkin {
 static VISUAL_PANES_LOGGED: AtomicBool = AtomicBool::new(false);
 static VISUAL_RESET_HOOKS_LOGGED: AtomicBool = AtomicBool::new(false);
 static VISUAL_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
-static VISUAL_RUNTIME: VisualRuntimeCell = VisualRuntimeCell(UnsafeCell::new(VisualRuntime::new()));
+static VISUAL_CACHE: VisualCacheCell = VisualCacheCell(UnsafeCell::new(VisualCache::Empty));
 
 pub(crate) unsafe fn render_visual_overlay(
     layout: *mut Layout,
     root_pane: *mut Pane,
     snapshot: Option<ControllerSnapshot>,
 ) -> Result<(), VisualRenderError> {
-    let view_state = snapshot
-        .map(ControllerViewState::from_snapshot)
-        .unwrap_or_else(ControllerViewState::neutral);
+    let view_state = ControllerViewState::from_optional_snapshot(snapshot);
     let _guard = VisualRuntimeGuard::acquire();
-    (*VISUAL_RUNTIME.0.get()).render(layout, root_pane, &ACTIVE_SKIN, &view_state)
+    render_into_cache(
+        &mut *VISUAL_CACHE.0.get(),
+        layout,
+        root_pane,
+        &ACTIVE_SKIN,
+        &view_state,
+    )
 }
 
 pub(crate) fn install_draw_path_visual_reset_hooks() {
@@ -251,7 +240,7 @@ unsafe fn reset_visual_runtime_on_match_end(_: &InlineCtx) {
 fn reset_visual_runtime() {
     let _guard = VisualRuntimeGuard::acquire();
     unsafe {
-        (*VISUAL_RUNTIME.0.get()).reset();
+        *VISUAL_CACHE.0.get() = VisualCache::Empty;
     }
 }
 
@@ -411,23 +400,4 @@ fn interpolate_alpha(released_alpha: u8, pressed_alpha: u8, analog: f32) -> u8 {
 fn interpolate_scale(released_scale: f32, pressed_scale: f32, analog: f32) -> f32 {
     let analog = analog.clamp(0.0, 1.0);
     released_scale + (pressed_scale - released_scale) * analog
-}
-
-pub(crate) unsafe fn pane_name_matches(pane: *mut Pane, expected_name: &'static [u8]) -> bool {
-    if pane.is_null() {
-        return false;
-    }
-
-    let Ok(expected) = CStr::from_bytes_with_nul(expected_name) else {
-        return false;
-    };
-
-    let name = &(*pane).name;
-    let len = name
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(name.len());
-    let actual = std::slice::from_raw_parts(name.as_ptr() as *const u8, len);
-
-    actual == expected.to_bytes()
 }

@@ -10,13 +10,14 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Entry point: `src/lib.rs`.
 - The implementation is split into small modules:
   - `config`: runtime constants and display mode selection.
-  - `input`: HID polling, raw snapshots, logical controls, and view-state mapping.
-  - `ui`: match-layout draw dispatch plus draw-path ui2d helper wrappers.
+  - `input`: HID polling, raw snapshots, logical controls, and view-state mapping; exports `poll_view_state_now()` and `ControllerViewState::from_optional_snapshot()` so the draw and non-draw paths share a single snapshot-to-view conversion.
+  - `ui`: match-layout draw dispatch plus draw-path ui2d helper wrappers (`find_pane_by_name`, `set_textbox_text`).
   - `hud`: experimental non-draw visual capture/update path for Training Modpack coexistence.
-  - `debug_text`: current working text fallback.
-  - `visual` and `skin`: non-text pane renderer and built-in skin data.
+  - `debug_text`: text fallback for the normal draw path.
+  - `visual` and `skin`: non-text pane renderer, draw-path visual cache lifecycle hooks, and built-in skin data; skin element constructors share a `BLANK_ELEMENT` const via struct-update syntax.
+  - `pane_utils`: shared `pane_name_matches(*mut Pane, &[u8])` and `cstr_bytes_to_str(&[u8])` helpers used by `visual`, `debug_text`, `ui`, and `hud`.
   - `layout_inject`: optional inline hook that swaps in the modified `info_melee` `layout.arc`.
-  - `offsets` and `logger`: hook resolution and diagnostics.
+  - `offsets` and `logger`: hook resolution and diagnostics. `logger::log_startup_banner(StartupBanner { .. })` emits the multi-line startup trace block from one call site.
 - `build.rs` embeds `local-assets/modified/info_melee/layout.arc` only when `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1` is set. The default build expects the patched layout to be installed as a normal data replacement.
 - Uses Rust + Skyline only.
 - Hooks `nn::ui2d::Layout::Draw` by scanning `.text` for a known instruction signature when Training Modpack is not present.
@@ -36,9 +37,9 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - `sgpo_pro_a_marker` keeps the previously tested A-button pane name.
 - Pressed buttons dim/brighten and scale; stick dots move from normalized stick positions.
 - `Visual` falls back to `DebugText` if injected panes are missing on the normal draw path.
-- `visual::VisualRuntime` caches resolved `sgpo_root` and `SkinElement` pane pointers per `info_melee` layout/root pointer pair.
-- If the `info_melee` root changes, or cached pane metadata is not valid, the visual runtime re-resolves once for the new root.
-- On 13.0.4, the normal draw path also installs match start/end reset hooks so `visual::VisualRuntime` is cleared between recreated match HUD layouts even if Smash reuses an allocator slot.
+- `visual::VISUAL_CACHE` (a `VisualCache` static) caches resolved `sgpo_root` and `SkinElement` pane pointers per `info_melee` layout/root pointer pair. Access is serialized via a `VisualRuntimeGuard` spin lock so the draw hook and the match start/end reset hooks cannot race; the wrapper struct that used to own this cache was removed in favor of free `render_into_cache`/`resolve_into_cache` functions.
+- If the `info_melee` root changes, or cached pane metadata is not valid, the visual cache re-resolves once for the new root.
+- On 13.0.4, the normal draw path also installs match start/end reset hooks so the visual cache is cleared between recreated match HUD layouts even if Smash reuses an allocator slot.
 - If required visual panes are missing, the missing result is cached for that root and the UI path falls back to DebugText without repeated visual pane searches.
 - DebugText fallback now caches its text panes per root, uses a narrower text-pane candidate list, and rejects panes that do not look like usable textboxes.
 - `hud::HudVisualRuntime` separately caches panes found through captured P1 HUD parts layout data so the visual skin can be updated without `Layout::Draw`; it keeps slots for both P1 HUD parts variants (`p1` and `p1_2`) because one can be hidden depending on match HUD mode.
@@ -119,7 +120,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - adds 24 child `sgpo_pro_*` picture panes under `sgpo_root`;
   - sets injected panes to alpha `0` so stale/unupdated copies do not appear as white boxes;
   - avoids BFLAN animation edits, `layout.info` edits, external skin files, and runtime pane allocation.
-- `tools/patch_info_melee_layout.py --self-test` validates the source BFLYT header/section walk and the `pic1` field offsets used for vertex color, material index, and texture coordinate count before patching.
+- `tools/patch_info_melee_layout.py --self-test` validates the source BFLYT header/section walk and the `pic1` field offsets used for vertex color, material index, and texture coordinate count before patching. The self-test and the real patch run both go through one shared `load_bflyt()` helper, so the self-test exercises the same parser used in production.
 - `tools/patch_info_melee_layout.py` refuses source/destination combinations where one path contains the other, to avoid deleting local source assets before copying.
 - `tools/stage_arcropolis_layout.py` stages the generated layout at `target/arcropolis/smash-gamepad-overlay/ui/layout/info/info_melee/info_melee/layout.arc` for copying into `sd:/ultimate/mods/`.
 - `tools/stage_arcropolis_layout.py` validates every pane name in the generated active skin before copying the layout.
