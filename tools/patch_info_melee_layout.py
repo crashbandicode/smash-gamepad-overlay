@@ -274,6 +274,25 @@ def run_self_test(source: Path) -> None:
     print(f"patcher self-test passed for {source}")
 
 
+def path_is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def validate_source_dest_paths(source: Path, dest: Path) -> None:
+    source = source.resolve()
+    dest = dest.resolve()
+    if source == dest:
+        raise ValueError("--dest must be different from --source")
+    if path_is_relative_to(source, dest):
+        raise ValueError("--dest must not be a parent of --source")
+    if path_is_relative_to(dest, source):
+        raise ValueError("--dest must not be inside --source")
+
+
 def patch_bflyt(
     path: Path, marker_source_name: str, marker_material_source_name: str | None
 ) -> None:
@@ -363,6 +382,8 @@ def main() -> None:
     if args.self_test:
         run_self_test(args.source)
         return
+
+    validate_source_dest_paths(args.source, args.dest)
 
     if args.dest.exists():
         shutil.rmtree(args.dest)

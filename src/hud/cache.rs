@@ -3,12 +3,13 @@ use std::cell::UnsafeCell;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::input::{poll_p1_controller, ControllerViewState};
+use crate::input::ControllerViewState;
 use crate::logger::trace;
 use crate::skin::{BuiltInSkin, ACTIVE_SKIN};
 use crate::visual::{
-    hide_visual_skin_root, update_visual_skin_pane, update_visual_skin_root_with_config,
-    VisualRenderError, MAX_RESOLVED_SKIN_ELEMENTS,
+    hide_visual_skin_root, pane_name_matches, update_visual_skin_pane,
+    update_visual_skin_root_with_config, validate_skin_size, VisualRenderError,
+    MAX_RESOLVED_SKIN_ELEMENTS,
 };
 
 use super::capture::{
@@ -82,7 +83,6 @@ impl HudVisualRuntime {
         &mut self,
         captured: CapturedHudLayout,
         skin: &'static BuiltInSkin,
-        training_mode: bool,
     ) {
         if captured.layout_data == 0 || self.has_cache_for(captured, skin) {
             return;
@@ -96,12 +96,6 @@ impl HudVisualRuntime {
         match resolve_hud_skin(captured, skin) {
             Ok(resolved) => {
                 self.caches[slot_index] = HudCache::Resolved(resolved);
-                HUD_CAPTURED.store(true, Ordering::Relaxed);
-
-                let view_state = poll_p1_controller()
-                    .map(ControllerViewState::from_snapshot)
-                    .unwrap_or_else(ControllerViewState::neutral);
-                let _ = self.update(&view_state, training_mode);
 
                 trace(&format!(
                     "non-draw HUD path captured skin '{}' from {} layout data 0x{:x}",
@@ -157,7 +151,6 @@ impl HudVisualRuntime {
             updated_any = true;
         }
 
-        HUD_CAPTURED.store(updated_any, Ordering::Relaxed);
         updated_any
     }
 
@@ -241,36 +234,32 @@ impl ResolvedHudSkin {
                 self.layout_kind,
                 HudLayoutKind::MatchRoot | HudLayoutKind::P1Parts | HudLayoutKind::P1AltParts
             )
+            && unsafe { pane_name_matches(self.skin_root, ACTIVE_SKIN.root_pane_name) }
             && self.pane_count == ACTIVE_SKIN.elements.len()
             && self.panes[..self.pane_count]
                 .iter()
-                .all(|pane| !pane.is_null())
+                .zip(ACTIVE_SKIN.elements.iter())
+                .all(|(pane, element)| unsafe { pane_name_matches(*pane, element.pane_name) })
     }
 }
 
 static HUD_CAPTURE_MISS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_LAYOUT_PATCH_PROBE_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_CACHE_FULL_LOGGED: AtomicBool = AtomicBool::new(false);
-static HUD_CAPTURED: AtomicBool = AtomicBool::new(false);
 static HUD_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static HUD_VISUAL_RUNTIME: HudVisualRuntimeCell =
     HudVisualRuntimeCell(UnsafeCell::new(HudVisualRuntime::new()));
 
-pub(super) fn runtime_has_capture() -> bool {
-    HUD_CAPTURED.load(Ordering::Relaxed)
-}
-
 pub(super) fn reset_runtime() {
     let _guard = HudRuntimeGuard::acquire();
-    HUD_CAPTURED.store(false, Ordering::Relaxed);
     unsafe {
         (*HUD_VISUAL_RUNTIME.0.get()).reset();
     }
 }
 
-pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout, training_mode: bool) {
+pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout) {
     let _guard = HudRuntimeGuard::acquire();
-    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, &ACTIVE_SKIN, training_mode);
+    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, &ACTIVE_SKIN);
 }
 
 pub(super) unsafe fn update_runtime(state: &ControllerViewState, training_mode: bool) -> bool {
@@ -282,6 +271,8 @@ unsafe fn resolve_hud_skin(
     captured: CapturedHudLayout,
     skin: &'static BuiltInSkin,
 ) -> Result<ResolvedHudSkin, VisualRenderError> {
+    validate_skin_size(skin)?;
+
     let skin_root = find_pane_in_layout_data(captured.layout_data, skin.root_pane_name).ok_or(
         VisualRenderError::MissingSkinPane {
             skin_name: skin.name,
@@ -316,6 +307,13 @@ fn log_capture_miss(error: VisualRenderError) {
             "non-draw HUD path could not find skin '{skin_name}' pane '{}'",
             cstr_bytes_to_str(pane_name)
         )),
+        VisualRenderError::SkinTooLarge {
+            skin_name,
+            element_count,
+            max_elements,
+        } => trace(&format!(
+            "non-draw HUD path cannot use skin '{skin_name}' because it has {element_count} elements; max supported is {max_elements}"
+        )),
     }
 
     match error {
@@ -329,6 +327,9 @@ fn log_capture_miss(error: VisualRenderError) {
             trace(
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
             );
+        }
+        VisualRenderError::SkinTooLarge { .. } => {
+            trace("split the skin or raise MAX_RESOLVED_SKIN_ELEMENTS before activating it");
         }
     }
 }

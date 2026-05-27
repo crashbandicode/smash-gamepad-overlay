@@ -89,6 +89,16 @@ fn log_visual_fallback(error: VisualRenderError) {
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
             );
         }
+        VisualRenderError::SkinTooLarge {
+            skin_name,
+            element_count,
+            max_elements,
+        } => {
+            trace(&format!(
+                "visual mode fallback: skin '{skin_name}' has {element_count} elements but runtime supports at most {max_elements}"
+            ));
+            trace("split the skin or raise MAX_RESOLVED_SKIN_ELEMENTS before activating it");
+        }
     }
 }
 

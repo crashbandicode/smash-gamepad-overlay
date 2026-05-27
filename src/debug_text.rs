@@ -1,6 +1,7 @@
 use skyline::nn::ui2d::{
     HorizontalPosition, Pane, PaneFlag, TextBox, TextBoxFlag, VerticalPosition,
 };
+use std::cell::UnsafeCell;
 use std::ffi::CStr;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,25 +15,51 @@ use crate::input::{button_names, gc_trigger_text, npad_id_name, style_name, Cont
 use crate::logger::trace;
 use crate::ui::{find_pane_by_name, set_textbox_text};
 
+const EMPTY_TEXT_PANE_NAME: &[u8] = b"\0";
+
+#[derive(Debug, Copy, Clone)]
 struct TextPaneSlots {
     panes: [*mut Pane; MAX_OVERLAY_TEXT_PANES],
+    names: [&'static [u8]; MAX_OVERLAY_TEXT_PANES],
     count: usize,
 }
+
+#[derive(Debug, Copy, Clone)]
+enum DebugTextCache {
+    Empty,
+    Resolved {
+        root_pane: *mut Pane,
+        slots: TextPaneSlots,
+    },
+    Missing {
+        root_pane: *mut Pane,
+    },
+}
+
+struct DebugTextRuntime {
+    cache: DebugTextCache,
+}
+
+struct DebugTextRuntimeCell(UnsafeCell<DebugTextRuntime>);
+
+unsafe impl Sync for DebugTextRuntimeCell {}
 
 impl TextPaneSlots {
     fn new() -> Self {
         Self {
             panes: [ptr::null_mut(); MAX_OVERLAY_TEXT_PANES],
+            names: [EMPTY_TEXT_PANE_NAME; MAX_OVERLAY_TEXT_PANES],
             count: 0,
         }
     }
 
-    fn push(&mut self, pane: *mut Pane) {
+    fn push(&mut self, pane: *mut Pane, name: &'static [u8]) {
         if pane.is_null() || self.count >= MAX_OVERLAY_TEXT_PANES || self.contains(pane) {
             return;
         }
 
         self.panes[self.count] = pane;
+        self.names[self.count] = name;
         self.count += 1;
     }
 
@@ -49,12 +76,16 @@ static MISSING_TEXT_PANE_LOGGED: AtomicBool = AtomicBool::new(false);
 static P1_PARTS_PANE_MISSING_LOGGED: AtomicBool = AtomicBool::new(false);
 static P1_PARTS_LAYOUT_MISSING_LOGGED: AtomicBool = AtomicBool::new(false);
 static TEXT_PANES_LOGGED: AtomicBool = AtomicBool::new(false);
+static DEBUG_TEXT_RUNTIME: DebugTextRuntimeCell =
+    DebugTextRuntimeCell(UnsafeCell::new(DebugTextRuntime {
+        cache: DebugTextCache::Empty,
+    }));
 
 pub(crate) unsafe fn draw_debug_text_overlay(
     root_pane: *mut Pane,
     snapshot: Option<ControllerSnapshot>,
 ) {
-    let text_panes = find_debug_text_panes(root_pane);
+    let text_panes = debug_text_panes_for_root(root_pane);
     if text_panes.count == 0 {
         if !MISSING_TEXT_PANE_LOGGED.swap(true, Ordering::Relaxed) {
             trace(&format!(
@@ -77,6 +108,33 @@ pub(crate) unsafe fn draw_debug_text_overlay(
         let textbox = (*text_panes.panes[line_index]).as_textbox();
         position_debug_text(textbox, line_index);
         set_textbox_text(textbox, line);
+    }
+}
+
+unsafe fn debug_text_panes_for_root(root_pane: *mut Pane) -> TextPaneSlots {
+    (*DEBUG_TEXT_RUNTIME.0.get()).panes_for_root(root_pane)
+}
+
+impl DebugTextRuntime {
+    unsafe fn panes_for_root(&mut self, root_pane: *mut Pane) -> TextPaneSlots {
+        match self.cache {
+            DebugTextCache::Resolved {
+                root_pane: cached_root,
+                slots,
+            } if cached_root == root_pane && text_pane_slots_are_valid(&slots) => slots,
+            DebugTextCache::Missing {
+                root_pane: cached_root,
+            } if cached_root == root_pane => TextPaneSlots::new(),
+            _ => {
+                let slots = find_debug_text_panes(root_pane);
+                self.cache = if slots.count == 0 {
+                    DebugTextCache::Missing { root_pane }
+                } else {
+                    DebugTextCache::Resolved { root_pane, slots }
+                };
+                slots
+            }
+        }
     }
 }
 
@@ -126,6 +184,9 @@ unsafe fn collect_debug_text_panes(panes: &mut TextPaneSlots, root_pane: *mut Pa
         if pane.is_null() {
             continue;
         }
+        if !is_usable_textbox_pane(pane) {
+            continue;
+        }
 
         if !TEXT_PANES_LOGGED.load(Ordering::Relaxed) {
             trace(&format!(
@@ -134,8 +195,47 @@ unsafe fn collect_debug_text_panes(panes: &mut TextPaneSlots, root_pane: *mut Pa
                 panes.count
             ));
         }
-        panes.push(pane);
+        panes.push(pane, name);
     }
+}
+
+unsafe fn text_pane_slots_are_valid(slots: &TextPaneSlots) -> bool {
+    slots.panes[..slots.count]
+        .iter()
+        .zip(slots.names[..slots.count].iter())
+        .all(|(pane, name)| is_usable_textbox_pane(*pane) && pane_name_matches(*pane, name))
+}
+
+unsafe fn is_usable_textbox_pane(pane: *mut Pane) -> bool {
+    if pane.is_null() {
+        return false;
+    }
+
+    let textbox = &*(pane as *const TextBox);
+    (2..=512).contains(&textbox.text_buf_len)
+        && textbox.text_len <= textbox.text_buf_len
+        && !textbox.text_buf.is_null()
+        && textbox.font_size_x.is_finite()
+        && textbox.font_size_y.is_finite()
+}
+
+unsafe fn pane_name_matches(pane: *mut Pane, expected_name: &[u8]) -> bool {
+    if pane.is_null() {
+        return false;
+    }
+
+    let Ok(expected) = CStr::from_bytes_with_nul(expected_name) else {
+        return false;
+    };
+
+    let name = &(*pane).name;
+    let len = name
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(name.len());
+    let actual = std::slice::from_raw_parts(name.as_ptr() as *const u8, len);
+
+    actual == expected.to_bytes()
 }
 
 fn cstr_bytes_to_str(bytes: &[u8]) -> &str {

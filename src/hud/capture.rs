@@ -14,6 +14,10 @@ use crate::logger::trace;
 use crate::skin::ACTIVE_SKIN;
 
 const HUD_LAYOUT_PROBE_LIMIT: usize = 16;
+const MIN_REASONABLE_POINTER: u64 = 0x10000;
+const PANE_NAME_OFFSET: u64 = 0xb0;
+const PANE_NAME_CAPACITY: usize = 25;
+const ORIGINAL_PLAYER_MARKER_PANE_NAME: &[u8] = b"set_rep_01\0";
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub(super) enum HudLayoutKind {
@@ -57,26 +61,15 @@ static HUD_OTHER_LAYOUT_PROBE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 pub(super) unsafe fn captured_layout(ctx: &InlineCtx) -> Option<CapturedHudLayout> {
     let layout_data = ctx.registers[0].x();
-    if layout_data == 0 {
+    if !is_plausible_pointer(layout_data) || !layout_data_has_relevant_panes(layout_data) {
         return None;
     }
 
-    let layout_view = *((layout_data as *const u64).add(1));
-    if layout_view == 0 {
-        return None;
-    }
-
-    let layout_pane = *((layout_view as *const u64).add(3));
-    if layout_pane == 0 {
-        return None;
-    }
-
-    let ui2d_pane = *(layout_pane as *const u64);
-    if ui2d_pane == 0 {
-        return None;
-    }
-
-    let name = std::ffi::CStr::from_ptr(ui2d_pane.wrapping_add(0xb0) as *const c_char).to_bytes();
+    let layout_view = read_pointer_field(layout_data, 1)?;
+    let layout_pane = read_pointer_field(layout_view, 3)?;
+    let ui2d_pane = read_pointer_field(layout_pane, 0)?;
+    let name_buffer = read_pane_name(ui2d_pane)?;
+    let name = pane_name_bytes(&name_buffer);
     log_captured_layout_probe(layout_data, name);
 
     match name {
@@ -110,6 +103,10 @@ pub(super) unsafe fn find_pane_in_layout_data(
 }
 
 unsafe fn find_pane_handle_in_layout_data(layout_data: u64, pane_name: &'static [u8]) -> u64 {
+    if !is_plausible_pointer(layout_data) {
+        return 0;
+    }
+
     type GetPaneByName = unsafe extern "C" fn(u64, *const c_char, ...) -> [u64; 4];
     let func_addr =
         (getRegionAddress(Region::Text) as *const u8).add(LAYOUT_GET_PANE_BY_NAME_OFFSET);
@@ -119,7 +116,7 @@ unsafe fn find_pane_handle_in_layout_data(layout_data: u64, pane_name: &'static 
 }
 
 unsafe fn pane_from_layout_handle(pane_handle: u64) -> *mut Pane {
-    if pane_handle == 0 {
+    if !is_plausible_pointer(pane_handle) {
         return ptr::null_mut();
     }
 
@@ -134,6 +131,44 @@ unsafe fn pane_from_layout_handle(pane_handle: u64) -> *mut Pane {
 unsafe fn layout_data_looks_like_match_root(layout_data: u64) -> bool {
     find_pane_in_layout_data(layout_data, P1_PARTS_PANE_NAME).is_some()
         && find_pane_in_layout_data(layout_data, ACTIVE_SKIN.root_pane_name).is_some()
+}
+
+unsafe fn layout_data_has_relevant_panes(layout_data: u64) -> bool {
+    find_pane_in_layout_data(layout_data, ACTIVE_SKIN.root_pane_name).is_some()
+        || find_pane_in_layout_data(layout_data, P1_PARTS_PANE_NAME).is_some()
+        || find_pane_in_layout_data(layout_data, ORIGINAL_PLAYER_MARKER_PANE_NAME).is_some()
+}
+
+unsafe fn read_pointer_field(base: u64, index: usize) -> Option<u64> {
+    if !is_plausible_pointer(base) {
+        return None;
+    }
+
+    let value = *((base as *const u64).add(index));
+    is_plausible_pointer(value).then_some(value)
+}
+
+unsafe fn read_pane_name(ui2d_pane: u64) -> Option<[u8; PANE_NAME_CAPACITY]> {
+    if !is_plausible_pointer(ui2d_pane) {
+        return None;
+    }
+
+    let name_ptr = ui2d_pane.checked_add(PANE_NAME_OFFSET)? as *const u8;
+    let mut name = [0; PANE_NAME_CAPACITY];
+    ptr::copy_nonoverlapping(name_ptr, name.as_mut_ptr(), name.len());
+    Some(name)
+}
+
+fn pane_name_bytes(name: &[u8; PANE_NAME_CAPACITY]) -> &[u8] {
+    let len = name
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(name.len());
+    &name[..len]
+}
+
+fn is_plausible_pointer(value: u64) -> bool {
+    value >= MIN_REASONABLE_POINTER && value & 0x7 == 0
 }
 
 fn log_captured_layout_probe(layout_data: u64, name: &[u8]) {

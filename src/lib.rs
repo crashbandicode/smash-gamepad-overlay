@@ -94,9 +94,11 @@ pub fn main() {
 
     let training_modpack_present = training_modpack_plugin_present();
     if training_modpack_present {
+        trace("Training Modpack compatibility mode enabled");
         trace(&format!(
-            "detected Training Modpack plugin at {}",
-            crate::config::TRAINING_MODPACK_PLUGIN_PATH
+            "compatibility triggers: standard Training Modpack path {}, matching *training*modpack*.nro in the plugin folder, or force flag {}",
+            crate::config::TRAINING_MODPACK_PLUGIN_PATH,
+            crate::config::FORCE_TRAINING_MODPACK_COMPAT_FLAG_PATH
         ));
         trace("using non-draw HUD path and skipping shared layout/draw hooks");
         trace(
@@ -109,18 +111,18 @@ pub fn main() {
         return;
     }
 
-    #[cfg(sgpo_embed_layout)]
-    install_layout_injection_hook();
-
-    #[cfg(not(sgpo_embed_layout))]
-    trace("embedded layout injection disabled; install patched info_melee layout as a normal data replacement");
-
     if smash_display_version != SUPPORTED_DRAW_PATH_DISPLAY_VERSION {
         trace(&format!(
             "draw path not installed for Smash display version {smash_display_version}; ui2d helper offsets are currently supported only for {SUPPORTED_DRAW_PATH_DISPLAY_VERSION}"
         ));
         return;
     }
+
+    #[cfg(sgpo_embed_layout)]
+    install_layout_injection_hook();
+
+    #[cfg(not(sgpo_embed_layout))]
+    trace("embedded layout injection disabled; install patched info_melee layout as a normal data replacement");
 
     install_draw_path_visual_reset_hooks();
 

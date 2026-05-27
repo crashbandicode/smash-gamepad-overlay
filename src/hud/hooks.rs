@@ -38,7 +38,17 @@ unsafe fn capture_match_hud_layout_data(ctx: &InlineCtx) {
         trace("non-draw HUD path found root info_melee layout; using bottom-right root overlay");
     }
 
-    cache::capture_runtime(captured, training_mode_active());
+    let training_mode = training_mode_active();
+    cache::capture_runtime(captured);
+
+    let view_state = poll_p1_controller()
+        .map(ControllerViewState::from_snapshot)
+        .unwrap_or_else(ControllerViewState::neutral);
+    if cache::update_runtime(&view_state, training_mode)
+        && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
+    {
+        trace("non-draw HUD path updated visual panes");
+    }
 }
 
 #[skyline::hook(offset = SCENE_UPDATE_OFFSET, inline)]
@@ -47,9 +57,6 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
         trace("non-draw HUD scene update hook fired");
     }
 
-    if !cache::runtime_has_capture() {
-        return;
-    }
     if training_mode_overlay_disabled() {
         cache::reset_runtime();
         return;
@@ -91,7 +98,7 @@ pub(crate) fn install_non_draw_hud_hooks() {
 
     if !HUD_HOOKS_LOGGED.swap(true, Ordering::Relaxed) {
         trace(&format!(
-            "installing non-draw HUD hooks at .text+0x{HUD_SET_INFO_ALPHA_OFFSET:x}/0x{SCENE_UPDATE_OFFSET:x}"
+            "installing non-draw HUD hooks at .text+0x{HUD_SET_INFO_ALPHA_OFFSET:x}/0x{SCENE_UPDATE_OFFSET:x}/0x{HUD_MATCH_START_OFFSET:x}/0x{HUD_MATCH_END_OFFSET:x}"
         ));
     }
 
