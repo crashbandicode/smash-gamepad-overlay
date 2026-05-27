@@ -40,6 +40,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - If the `info_melee` root changes, or cached pane metadata is not valid, the visual runtime re-resolves once for the new root.
 - If required visual panes are missing, the missing result is cached for that root and the UI path falls back to DebugText without repeated visual pane searches.
 - `hud::HudVisualRuntime` separately caches panes found through captured P1 HUD parts layout data so the visual skin can be updated without `Layout::Draw`; it keeps slots for both P1 HUD parts variants (`p1` and `p1_2`) because one can be hidden depending on match HUD mode.
+- `hud::HudVisualRuntime` access is guarded by a small spin lock because Training Modpack mode can touch it from capture, scene-update, and match reset hooks.
 - The Training Modpack path logs missing visual panes and stays inactive instead of falling back to DebugText, because the text fallback requires the intentionally skipped draw hook.
 - The Training Modpack path currently places the skin in P1/P1_2 HUD-local space because that follows the player HUD pause visibility behavior. It cannot reach true bottom-right through this path without being clipped by the P1 HUD parts container.
 - The current Training Modpack-compatible placement is intentionally P1-adjacent and lowered so it is less likely to cover match action. Tune `TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG` and `TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG` for non-training placement, and `TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG` / `TRAINING_MODE_P1_2_PARTS_OVERLAY_CONFIG` for Training-mode-only placement.
@@ -50,6 +51,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - `SkinElement`: maps a control to a pane name, optional source image/material names, base position, size, alpha/visibility/scale states, and optional x/y stick movement range.
   - Active built-in skin: `minimal_debug`.
   - Inactive built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout as data only.
+- Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match `ACTIVE_SKIN`.
 - Custom-skin direction:
   - the plugin should not parse arbitrary PNGs or construct complete visual assets at runtime;
   - a future PC-side converter should read RetroSpy-style `skin.xml` plus PNG assets;
