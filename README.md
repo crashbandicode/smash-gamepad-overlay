@@ -13,6 +13,7 @@ The first milestone is intentionally small:
 - Tested against Smash display version `13.0.4`.
 - Current tested environment notes: ARCropolis `4.0.7`, Atmosphere `1.11.1`, and Eden `0.1.0`.
 - Without Training Modpack, the known-good path still uses `nn::ui2d::Layout::Draw`, which resolves to `.text+0x4b620` in the tested setup.
+- The normal draw path is gated to display version `13.0.4` because its ui2d helper offsets are version-specific.
 - With Training Modpack present at its standard plugin path, this plugin skips the shared `Layout::Draw` hook and uses a non-draw HUD capture/update path.
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
@@ -78,6 +79,12 @@ Do not use embedded layout injection with Training Modpack. The default build ke
 For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
 
 The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path.
+
+Validate the patcher's BFLYT/pic1 assumptions against your unpacked source layout:
+
+```sh
+python tools/patch_info_melee_layout.py --self-test
+```
 
 Stage the generated layout into an ARCropolis mod folder:
 
