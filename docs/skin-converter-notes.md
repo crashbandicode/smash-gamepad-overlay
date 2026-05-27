@@ -72,6 +72,6 @@ Parser regression tests cover the Rust-source parsing used by the analyzer:
 python -m unittest tools.tests.test_analyze_retrospy_skin
 ```
 
-The next planning document is `docs/skin-layout-generation-plan.md`. It records
-the BFLYT/BNTX/layout work needed before converting the dry-run manifest into
-real PNG-backed Smash UI panes.
+Next converter work should stay narrow: prove one PNG-backed pane end to end
+before generating a full skin. The runtime plugin should not change until the
+generated panes/assets are known-good.

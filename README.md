@@ -2,11 +2,12 @@
 
 Rust Skyline plugin for Super Smash Bros. Ultimate that renders a simple P1 controller input overlay inside the game.
 
-The first milestone is intentionally small:
+Current baseline:
 
 - Poll P1 raw controller state.
-- Draw text during matches using Smash UI panes.
-- Show pressed buttons, left stick, right stick, and GameCube analog trigger values when available.
+- Render a simple square-based visual overlay during matches using patched Smash UI panes.
+- Keep `DebugText` available as a troubleshooting fallback.
+- Support Training Modpack by using the non-draw HUD path with the same patched layout.
 
 ## Current Status
 
@@ -67,14 +68,6 @@ cargo skyline build --release
 ```
 
 Runtime logs include a build ID such as `c12-b3-...`. `c12` is derived from `git rev-list --count HEAD`; `b3` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs during normal testing. The local build counter lives under `target/` and resets after `cargo clean`.
-
-Build with the old NRO-embedded layout injection hook enabled:
-
-```sh
-SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1 cargo skyline build --release
-```
-
-Do not use embedded layout injection with Training Modpack. The default build keeps this hook out of the NRO so Training Modpack can scan and hook the same offset safely.
 
 For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
 
@@ -206,7 +199,7 @@ For emulator testing, use the equivalent mod/plugin path for the emulator's Smas
 
 ## Training Modpack
 
-Training Modpack hooks both `Layout::Draw` and the same layout-arc handoff that SGPO can optionally use for NRO-embedded layouts. To coexist, the default SGPO build does not include the embedded layout hook and does not install the draw hook while Training Modpack compatibility mode is active.
+Training Modpack hooks `Layout::Draw`, so SGPO skips the draw hook and uses a non-draw HUD path while Training Modpack compatibility mode is active.
 
 Compatibility mode is enabled when SGPO sees the standard Training Modpack NRO path, any `*training*modpack*.nro` file in the Skyline plugin folder, or this force flag:
 
@@ -261,7 +254,7 @@ If Training Modpack is loaded and the log says `could not find ... sgpo_root`, S
 ## Known Limitations
 
 - The visual HUD is intentionally rough programmer art. It uses cloned picture panes, not custom textures or labels.
-- Training Modpack compatibility depends on installing the patched `info_melee/layout.arc` as a normal data replacement. Keep `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` unset for Training Modpack builds.
+- Training Modpack compatibility depends on installing the patched `info_melee/layout.arc` as a normal data replacement.
 - The Training Modpack path currently captures P1's HUD parts layout, so placement is local to the P1 HUD and cannot reach true bottom-right without clipping. This keeps the overlay tied to player-HUD pause visibility.
 - The Training Modpack path captures panes from the HUD info-alpha hook and drives live input updates from the scene-update hook. Cached panes are revalidated by expected pane name before update.
 - Training mode uses a separate left-side P1 HUD-local placement to avoid the CPU overlay near P1.

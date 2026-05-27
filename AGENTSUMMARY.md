@@ -2,7 +2,7 @@
 
 ## Goal
 
-Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 input overlay inside Super Smash Bros. Ultimate matches.
+Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside Super Smash Bros. Ultimate matches. The current stable baseline is the square-pane visual overlay plus DebugText fallback.
 
 ## Current Implementation
 
@@ -16,14 +16,12 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - `debug_text`: text fallback for the normal draw path.
   - `visual` and `skin`: non-text pane renderer, draw-path visual cache lifecycle hooks, and built-in skin data; skin element constructors share a `BLANK_ELEMENT` const via struct-update syntax.
   - `pane_utils`: shared `pane_name_matches(*mut Pane, &[u8])` and `cstr_bytes_to_str(&[u8])` helpers used by `visual`, `debug_text`, `ui`, and `hud`.
-  - `layout_inject`: optional inline hook that swaps in the modified `info_melee` `layout.arc`.
   - `offsets` and `logger`: hook resolution and diagnostics. `logger::log_startup_banner(StartupBanner { .. })` emits the multi-line startup trace block from one call site.
-- `build.rs` embeds `local-assets/modified/info_melee/layout.arc` only when `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1` is set. The default build expects the patched layout to be installed as a normal data replacement.
+- `build.rs` generates build metadata only. The patched layout is installed as a normal data replacement.
 - Uses Rust + Skyline only.
 - Hooks `nn::ui2d::Layout::Draw` by scanning `.text` for a known instruction signature when Training Modpack is not present.
-- Optionally hooks the layout-arc handoff by scanning for the HDR-style `layout.arc malloc handoff` signature only when built with `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1`.
 - When Training Modpack compatibility is detected, SGPO skips `Layout::Draw` and installs a non-draw HUD capture/update path. Compatibility detection checks the standard Training Modpack NRO path, `*training*modpack*.nro` files in the Skyline plugin folder, and the force flag `sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT`.
-- Training Modpack compatibility requires `local-assets/modified/info_melee/layout.arc` to be installed as a normal Smash data replacement at `ui/layout/info/info_melee/info_melee/layout.arc`; keep `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` unset with Training Modpack.
+- Training Modpack compatibility requires `local-assets/modified/info_melee/layout.arc` to be installed as a normal Smash data replacement at `ui/layout/info/info_melee/info_melee/layout.arc`.
 - Only draws when the current layout name is `info_melee`, so it appears in matches rather than menus/training-only UI.
 - Polls P1 controller state using `skyline::nn::hid`.
 - Tries Npad No1 first, then handheld Npad ID `0x20`.
@@ -85,15 +83,13 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 
 - Initial draw signature lookup failed when Training Modpack was enabled.
 - Training Modpack also scans/hooks `Layout::Draw`, so this plugin enables compatibility mode and skips installing its draw hook when Training Modpack is detected or forced.
-- Training Modpack also scans the same layout-arc handoff. Installing this plugin's layout hook first makes Training Modpack fail with `Failed to find offset for LAYOUT_ARC_MALLOC`; installing it later appears to break Training Modpack's own `info_training` panes and can trigger `Could not find pane TrModInputLog`.
-- Because that same-offset layout hook is not safe to chain, Training Modpack compatibility now leaves embedded layout injection out of default builds and expects a normal data replacement for the patched `info_melee/layout.arc`.
+- Training Modpack also scans the layout-arc handoff. Earlier embedded-layout experiments conflicted with that, so SGPO now relies on a normal data replacement for the patched `info_melee/layout.arc`.
 - Experimental non-draw rendering initially showed all root-level SGPO panes white and not updating. The fix was to:
   - set injected panes hidden by default with alpha `0`;
   - inject a second SGPO pane tree into `info_melee_lct_player_00.bflyt` and `info_melee_lct_player_01.bflyt`;
   - capture P1/P1_2 HUD parts layout data and root match HUD layout data when available;
   - apply current input state from the scene-update hook after pane capture so inputs update every frame.
 - The non-draw path is still new and should be treated as experimental until tested with Training Modpack enabled. If placement is wrong, adjust `TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG`.
-- A fresh build still logged `injected modified info_melee layout.arc`; because `main()` did not call the install function, default builds now compile the embedded layout hook out entirely. If that log line appears in a default build, there is probably another old SGPO NRO loaded.
 - Some text-box flags caused a Switch freeze right before the match countdown. Those were removed.
 - `cargo skyline listen` was not reliable for logs in the user's setup, so file logging was added.
 - Attached Joy-Cons initially reported as controller not ready; fallback polling for handheld Npad ID was added.
@@ -134,7 +130,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Machine-specific emulator paths belong in the local ignored `.env`, not in git.
 - `tools/analyze_retrospy_skin.py` parses RetroSpy-style `skin.xml`, emits repo-safe dry-run manifest/report files under `target/`, and validates the generated manifest against `switch_pro_alt_builtin`.
 - `tools/tests/test_analyze_retrospy_skin.py` covers the analyzer's Rust-source parsers with fixtures plus live-source backstops for `src/input.rs` and `src/skin.rs`.
-- `docs/skin-layout-generation-plan.md` is the current plan for turning the dry-run manifest into real PNG-backed `pic1` panes. It intentionally defers BNTX import and full material/texture generation until a one-pane proof is manually verified.
+- Next converter work should stay narrow: prove one PNG-backed pane end to end before generating a full skin.
 - Current custom pane tree:
   - `sgpo_root`
   - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`
@@ -146,7 +142,6 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - `sgpo_pro_dul`, `sgpo_pro_dur`, `sgpo_pro_ddl`, `sgpo_pro_ddr`
   - `sgpo_pro_btn_y`, `sgpo_pro_btn_x`, `sgpo_pro_btn_b`, `sgpo_pro_a_marker`
 - `sgpo_pro_a_marker` intentionally keeps the first known-good A-button pane name.
-- `build.rs` embeds `local-assets/modified/info_melee/layout.arc` into the NRO only when `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1`, but `local-assets/` and `data.arc` stay ignored. Do not enable this with Training Modpack.
 
 ## Relevant Offsets And Sources
 
@@ -162,7 +157,6 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Normal draw-path ui2d helper offsets are still absolute and are therefore gated to Smash display version `13.0.4` before installing `Layout::Draw`:
   - `find_pane_by_name_recursive`: `0x59970`
   - `pane_set_text_string`: `0x37a22f0`
-- Layout injection signature currently resolves to `.text+0x3774154` on the tested 13.0.4 setup.
 
 ## Repo State
 
