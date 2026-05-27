@@ -28,8 +28,11 @@ PLAYER_PARTS_BFLYTS = [
 ]
 PLAYER_PARTS_MARKER_SOURCE_NAME = "set_rep_01"
 PLAYER_PARTS_MARKER_MATERIAL_SOURCE_NAME = "set_rep_stock_01"
+# FLYT pic1 vertex color array: section header (8) + picture payload offset 0x4C.
 PIC_VERTEX_COLOR_OFFSET = 8 + 0x4C
+# FLYT pic1 material index: section header (8) + picture payload offset 0x5C.
 PIC_MATERIAL_INDEX_OFFSET = 8 + 0x5C
+# FLYT pic1 texture coordinate count: section header (8) + picture payload offset 0x5E.
 PIC_TEXTURE_COORD_COUNT_OFFSET = 8 + 0x5E
 
 # Keep these names in sync with src/skin.rs. The A marker keeps its previously

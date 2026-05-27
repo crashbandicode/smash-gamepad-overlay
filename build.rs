@@ -2,15 +2,24 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::UNIX_EPOCH;
 
 const MODIFIED_LAYOUT_ARC: &str = "local-assets/modified/info_melee/layout.arc";
 const EMBED_LAYOUT_ENV: &str = "SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT";
-const CHANGE_NUMBER_PATH: &str = "CHANGE_NUMBER";
+const FINGERPRINT_INPUTS: &[&str] = &[
+    "src",
+    "tools",
+    "docs",
+    "README.md",
+    "AGENTSUMMARY.md",
+    "build.rs",
+    "Cargo.toml",
+    "Cargo.lock",
+];
 
 fn main() {
     println!("cargo:rustc-check-cfg=cfg(sgpo_embed_layout)");
     println!("cargo:rerun-if-changed={MODIFIED_LAYOUT_ARC}");
-    println!("cargo:rerun-if-changed={CHANGE_NUMBER_PATH}");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=SMASH_GAMEPAD_OVERLAY_BUILD_ID");
@@ -21,7 +30,7 @@ fn main() {
     let generated_build_info = out_dir.join("sgpo_build_info.rs");
     let source = Path::new(MODIFIED_LAYOUT_ARC);
     let embed_layout = env_flag_enabled(EMBED_LAYOUT_ENV);
-    let change_number = read_change_number();
+    let change_number = git_change_number();
     let build_number = increment_build_number();
 
     if source.exists() && embed_layout {
@@ -51,7 +60,7 @@ fn main() {
         generated_build_info,
         format!(
             "pub(crate) const BUILD_ID: &str = {:?};\n\
-             pub(crate) const CHANGE_NUMBER: u32 = {};\n\
+             pub(crate) const GIT_CHANGE_COUNT: u32 = {};\n\
              pub(crate) const LOCAL_BUILD_NUMBER: u64 = {};\n\
              pub(crate) const EMBEDDED_LAYOUT_ENABLED: bool = {};\n",
             build_id(change_number, build_number),
@@ -70,9 +79,8 @@ fn env_flag_enabled(name: &str) -> bool {
     )
 }
 
-fn read_change_number() -> u32 {
-    fs::read_to_string(CHANGE_NUMBER_PATH)
-        .ok()
+fn git_change_number() -> u32 {
+    command_output("git", &["rev-list", "--count", "HEAD"])
         .and_then(|value| value.trim().parse().ok())
         .unwrap_or(0)
 }
@@ -118,33 +126,65 @@ fn build_id(change_number: u32, build_number: u64) -> String {
 
 fn dirty_tree_fingerprint() -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
-    for input in [
-        command_output("git", &["status", "--short"]).unwrap_or_default(),
-        command_output(
-            "git",
-            &[
-                "diff",
-                "--",
-                "src",
-                "tools",
-                "docs",
-                "README.md",
-                "AGENTSUMMARY.md",
-                "build.rs",
-                "Cargo.toml",
-                "Cargo.lock",
-                CHANGE_NUMBER_PATH,
-            ],
-        )
-        .unwrap_or_default(),
-    ] {
-        for byte in input.as_bytes() {
-            hash ^= *byte as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
+    let root = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| String::from(".")));
+
+    for input in FINGERPRINT_INPUTS {
+        fingerprint_path(&root.join(input), input, &mut hash);
     }
 
     hash
+}
+
+fn fingerprint_path(path: &Path, relative: &str, hash: &mut u64) {
+    hash_bytes(hash, relative.as_bytes());
+
+    let Ok(metadata) = fs::metadata(path) else {
+        hash_bytes(hash, b":missing");
+        return;
+    };
+
+    if metadata.is_dir() {
+        hash_bytes(hash, b":dir");
+        let Ok(entries) = fs::read_dir(path) else {
+            hash_bytes(hash, b":unreadable");
+            return;
+        };
+
+        let mut children = entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        children.sort();
+
+        for child in children {
+            let Some(name) = child.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            let child_relative = format!("{relative}/{name}");
+            fingerprint_path(&child, &child_relative, hash);
+        }
+        return;
+    }
+
+    hash_bytes(hash, b":file");
+    hash_u64(hash, metadata.len());
+    if let Ok(modified) = metadata.modified() {
+        if let Ok(duration) = modified.duration_since(UNIX_EPOCH) {
+            hash_u64(hash, duration.as_secs());
+            hash_u64(hash, duration.subsec_nanos() as u64);
+        }
+    }
+}
+
+fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= *byte as u64;
+        *hash = hash.wrapping_mul(0x100000001b3);
+    }
+}
+
+fn hash_u64(hash: &mut u64, value: u64) {
+    hash_bytes(hash, &value.to_le_bytes());
 }
 
 fn command_output(program: &str, args: &[&str]) -> Option<String> {

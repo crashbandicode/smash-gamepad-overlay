@@ -27,7 +27,7 @@ Use this checklist before treating the current square-pane visual overlay as a s
 - Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement at `ui/layout/info/info_melee/info_melee/layout.arc`.
 - Prefer staging the ARCropolis layout mod with `python tools/stage_arcropolis_layout.py`, then copy `target/arcropolis/smash-gamepad-overlay` to `sd:/ultimate/mods/`.
 - Build SGPO with default settings. Do not set `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` for Training Modpack tests.
-- Confirm the runtime log build ID has the expected `CHANGE_NUMBER` prefix and local build number.
+- Confirm the runtime log build ID has the expected git change-count prefix and local build number.
 - Enable Training Modpack with a normal SGPO build and confirm this plugin logs `using non-draw HUD path and skipping shared layout/draw hooks`.
 - Confirm this plugin does not log `installing layout injection hook` while Training Modpack is detected.
 - Confirm this plugin logs `embedded layout injection disabled`.

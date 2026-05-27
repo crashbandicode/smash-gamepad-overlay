@@ -45,7 +45,7 @@ Build a release NRO:
 cargo skyline build --release
 ```
 
-Runtime logs include a build ID such as `c0-b12-...`. `c0` is the tracked project change number from `CHANGE_NUMBER`; increment it with each commit. `b12` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs while testing.
+Runtime logs include a build ID such as `c12-b3-...`. `c12` is derived from `git rev-list --count HEAD`; `b3` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs during normal testing. The local build counter lives under `target/` and resets after `cargo clean`.
 
 Build with the old NRO-embedded layout injection hook enabled:
 

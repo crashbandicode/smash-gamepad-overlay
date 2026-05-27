@@ -51,7 +51,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - Built-in skin: `minimal_pro_controller_full`.
 - Writes diagnostics to `sd:/smash-gamepad-overlay.log`.
 - Startup logs include a build ID so stale installed NROs can be identified.
-- `CHANGE_NUMBER` is tracked and starts at `0`; increment it with each commit. Runtime build IDs include the change number plus a local Cargo build counter.
+- Build IDs use `git rev-list --count HEAD` as the `c*` change count plus a local Cargo build counter. The local build counter lives under `target/` and resets after `cargo clean`.
 
 ## Tested Context
 
@@ -138,6 +138,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - match start reset: `0x1345558`
   - match end reset: `0x1d68b94`
   - layout-data pane lookup helper: `0x3776360`
+- Training-mode detection calls `app::smashball::is_training_mode` by mangled symbol. Treat it as version-sensitive like the numeric offsets and re-check it when updating supported Smash versions.
 - Helper offsets currently used:
   - `find_pane_by_name_recursive`: `0x59970`
   - `pane_set_text_string`: `0x37a22f0`
