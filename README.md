@@ -11,14 +11,18 @@ The first milestone is intentionally small:
 ## Current Status
 
 - Tested against Smash display version `13.0.4`.
-- The `nn::ui2d::Layout::Draw` signature resolves to `.text+0x4b620` in the tested setup.
-- The overlay draws only while the match HUD layout, `info_melee`, is being rendered.
+- Current tested environment notes: ARCropolis `4.0.7`, Atmosphere `1.11.1`, and Eden `0.1.0`.
+- Without Training Modpack, the known-good path still uses `nn::ui2d::Layout::Draw`, which resolves to `.text+0x4b620` in the tested setup.
+- With Training Modpack present at its standard plugin path, this plugin skips the shared `Layout::Draw` hook and uses a non-draw HUD capture/update path.
+- Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
+- The overlay targets the match HUD layout, `info_melee`.
 - The overlay has two display modes: `Visual` and `DebugText`.
 - `Visual` mode is configured by default and targets a minimal Switch Pro Controller pane skin under `sgpo_root`.
-- The visual panes come from a modified `info_melee` `layout.arc` embedded at build time when `local-assets/modified/info_melee/layout.arc` exists.
+- The visual panes come from a modified `info_melee` `layout.arc`. The default build expects that layout to be installed as a normal Smash data replacement.
 - Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
-- Visual panes are resolved once per `info_melee` layout/root instance and then cached for per-frame updates.
-- If Training Modpack is installed at its standard Skyline plugin path, this plugin skips installing the draw hook to avoid a known hook/signature conflict.
+- Visual panes are resolved once per `info_melee` layout/root instance in the normal draw path, or once from captured P1 HUD parts layout data in the Training Modpack path, and then cached for per-frame updates.
+- When Training Modpack is loaded, SGPO still renders in non-training matches and also renders in Training mode by default. Create `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD` to suppress SGPO only in Training mode.
+- DebugText fallback is available on the normal draw path. With Training Modpack loaded, missing visual panes are logged and SGPO stays inactive rather than installing the conflicting draw hook.
 
 ## Requirements
 
@@ -41,7 +45,56 @@ Build a release NRO:
 cargo skyline build --release
 ```
 
+Runtime logs include a build ID such as `c0-b12-...`. `c0` is the tracked project change number from `CHANGE_NUMBER`; increment it with each commit. `b12` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs while testing.
+
+Build with the old NRO-embedded layout injection hook enabled:
+
+```sh
+SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1 cargo skyline build --release
+```
+
+Do not use embedded layout injection with Training Modpack. The default build keeps this hook out of the NRO so Training Modpack can scan and hook the same offset safely.
+
 For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
+
+The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path.
+
+Stage the generated layout into an ARCropolis mod folder:
+
+```sh
+python tools/stage_arcropolis_layout.py
+```
+
+This creates:
+
+```text
+target/arcropolis/smash-gamepad-overlay/ui/layout/info/info_melee/info_melee/layout.arc
+```
+
+Copy the `target/arcropolis/smash-gamepad-overlay` folder into your ARCropolis mods folder, for example `sd:/ultimate/mods/smash-gamepad-overlay`.
+
+For local emulator testing, copy `.env.example` to `.env` and set:
+
+```text
+SGPO_DEPLOY_EMU=1
+SGPO_EMU_PLUGIN_DIR=/path/to/emulator/user/sdmc/atmosphere/contents/01006A800016E000/romfs/skyline/plugins
+SGPO_EMU_MODS_DIR=/path/to/emulator/user/sdmc/ultimate/mods
+SGPO_EMU_LOG_PATH=/path/to/emulator/user/sdmc/smash-gamepad-overlay.log
+```
+
+With `SGPO_DEPLOY_EMU=1`, `python tools/stage_arcropolis_layout.py` also copies:
+
+```text
+target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro
+```
+
+into `SGPO_EMU_PLUGIN_DIR`, and stages the generated layout as:
+
+```text
+SGPO_EMU_MODS_DIR/smash-gamepad-overlay/ui/layout/info/info_melee/info_melee/layout.arc
+```
+
+Use `--no-emu` to stage only under `target/arcropolis`, or `--skip-nro` to deploy only the layout.
 
 The patched `info_melee` layout is expected to contain:
 
@@ -89,6 +142,36 @@ atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_gamepad_over
 
 For emulator testing, use the equivalent mod/plugin path for the emulator's Smash mod directory.
 
+## Training Modpack
+
+Training Modpack hooks both `Layout::Draw` and the same layout-arc handoff that SGPO can optionally use for NRO-embedded layouts. To coexist, the default SGPO build does not include the embedded layout hook and does not install the draw hook while Training Modpack is detected.
+
+In this mode, SGPO renders in normal matches and in Smash Training mode by default. To hide SGPO in Training mode while leaving it enabled everywhere else, create this empty flag file:
+
+```text
+sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD
+```
+
+For Eden on Windows/WSL, that maps to:
+
+```text
+<eden>/user/sdmc/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD
+```
+
+Install the patched `layout.arc` through your normal Smash data replacement/mod loader path instead:
+
+```text
+ui/layout/info/info_melee/info_melee/layout.arc
+```
+
+Use the locally generated file:
+
+```text
+local-assets/modified/info_melee/layout.arc
+```
+
+Do not commit or publish that `layout.arc`; it is generated from your local game dump.
+
 ## Runtime Log
 
 The plugin writes a small diagnostic log to:
@@ -97,12 +180,22 @@ The plugin writes a small diagnostic log to:
 sd:/smash-gamepad-overlay.log
 ```
 
-This is useful when `cargo skyline listen` does not show output. The log records startup, Smash display version, draw-hook resolution, whether `info_melee` was seen, and the active display path.
+For Eden on Windows/WSL, that usually maps to:
+
+```text
+<eden>/user/sdmc/smash-gamepad-overlay.log
+```
+
+This is useful when `cargo skyline listen` does not show output. The log records startup, build ID, Smash display version, hook resolution, non-draw HUD capture/update status, whether `info_melee` was seen, and the active display path.
+
+If Training Modpack is loaded and the log says `could not find ... sgpo_root`, Smash is loading an unpatched `info_melee` layout. Regenerate and restage the ARCropolis layout mod.
 
 ## Known Limitations
 
 - The visual HUD is intentionally rough programmer art. It uses cloned picture panes, not custom textures or labels.
-- Training Modpack can conflict with this plugin's draw hook. Disable or move Training Modpack when testing this overlay.
+- Training Modpack compatibility depends on installing the patched `info_melee/layout.arc` as a normal data replacement. Keep `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` unset for Training Modpack builds.
+- The Training Modpack path currently captures P1's HUD parts layout, so placement is local to the P1 HUD and cannot reach true bottom-right without clipping. This keeps the overlay tied to player-HUD pause visibility.
+- Training mode uses a separate left-side P1 HUD-local placement to avoid the CPU overlay near P1.
 - The visual HUD is pane-based. It does not use custom textures yet.
 
 ## Validation

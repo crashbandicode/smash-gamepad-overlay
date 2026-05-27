@@ -19,6 +19,8 @@ pub(crate) const LOG_PATH: &str = "sd:/smash-gamepad-overlay.log";
 pub(crate) const MATCH_HUD_LAYOUT: &str = "info_melee";
 pub(crate) const TRAINING_MODPACK_PLUGIN_PATH: &str =
     "sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libtraining_modpack.nro";
+pub(crate) const HIDE_TRAINING_GAMEPAD_FLAG_PATH: &str =
+    "sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD";
 
 pub(crate) const NPAD_ID_NO1: u32 = 0;
 pub(crate) const NPAD_ID_HANDHELD: u32 = 0x20;
@@ -31,6 +33,11 @@ pub(crate) const NPAD_STYLE_JOY_RIGHT: u32 = 1 << 4;
 pub(crate) const NPAD_STYLE_GAMECUBE: u32 = 1 << 5;
 
 pub(crate) const LEGACY_DRAW_OFFSET: usize = 0x4b620;
+pub(crate) const HUD_SET_INFO_ALPHA_OFFSET: usize = 0x1b6cc08;
+pub(crate) const SCENE_UPDATE_OFFSET: usize = 0x3747b7c;
+pub(crate) const HUD_MATCH_START_OFFSET: usize = 0x1345558;
+pub(crate) const HUD_MATCH_END_OFFSET: usize = 0x1d68b94;
+pub(crate) const LAYOUT_GET_PANE_BY_NAME_OFFSET: usize = 0x3776360;
 pub(crate) const BEST_MATCHES_TO_LOG: usize = 3;
 pub(crate) const TEXT_SCAN_ALIGNMENT: usize = 4;
 
@@ -47,6 +54,38 @@ pub(crate) const OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     x: 760.0,
     y: -330.0,
     scale: 1.0,
+    opacity: 255,
+};
+
+pub(crate) const TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
+    mode: DisplayMode::Visual,
+    x: 240.0,
+    y: -30.0,
+    scale: 0.55,
+    opacity: 255,
+};
+
+pub(crate) const TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
+    mode: DisplayMode::Visual,
+    x: 85.0,
+    y: -80.0,
+    scale: 0.5,
+    opacity: 255,
+};
+
+pub(crate) const TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
+    mode: DisplayMode::Visual,
+    x: -240.0,
+    y: -30.0,
+    scale: 0.55,
+    opacity: 255,
+};
+
+pub(crate) const TRAINING_MODE_P1_2_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
+    mode: DisplayMode::Visual,
+    x: -85.0,
+    y: -80.0,
+    scale: 0.5,
     opacity: 255,
 };
 

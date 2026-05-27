@@ -18,6 +18,26 @@ Use this checklist before treating the current square-pane visual overlay as a s
 
 ## Fallback
 
-- Test once with the patched layout missing or stale and confirm Visual mode logs one fallback message.
+- Without Training Modpack, test once with the patched layout missing or stale and confirm Visual mode logs one fallback message.
 - Confirm DebugText fallback appears and remains usable.
 - Confirm missing visual panes are not searched/logged repeatedly every frame.
+
+## Training Modpack Compatibility
+
+- Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement at `ui/layout/info/info_melee/info_melee/layout.arc`.
+- Prefer staging the ARCropolis layout mod with `python tools/stage_arcropolis_layout.py`, then copy `target/arcropolis/smash-gamepad-overlay` to `sd:/ultimate/mods/`.
+- Build SGPO with default settings. Do not set `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` for Training Modpack tests.
+- Confirm the runtime log build ID has the expected `CHANGE_NUMBER` prefix and local build number.
+- Enable Training Modpack with a normal SGPO build and confirm this plugin logs `using non-draw HUD path and skipping shared layout/draw hooks`.
+- Confirm this plugin does not log `installing layout injection hook` while Training Modpack is detected.
+- Confirm this plugin logs `embedded layout injection disabled`.
+- Confirm this plugin does not log `injected modified info_melee layout.arc`. If it does, check for another old SGPO NRO in the plugin folder.
+- Confirm Training Modpack does not show `Failed to find offset for LAYOUT_ARC_MALLOC` or `Could not find pane TrModInputLog`.
+- Start a non-training match and confirm the visual overlay appears dim by default, then updates with controller input.
+- Enter Training mode without `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD` and confirm SGPO renders alongside Training Modpack.
+- Create an empty `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD`, relaunch, and confirm SGPO stays inactive only in Training mode.
+- Remove `HIDE_TRAINING_GAMEPAD`, relaunch, and confirm SGPO renders in Training mode again.
+- Leave Training mode, start another non-training match, and confirm SGPO renders again.
+- If the overlay does not appear, check whether the log shows `non-draw HUD path captured skin` or a missing `sgpo_root` message.
+- If the log says `sgpo_root` is missing and `original_set_rep_01=true`, the loaded P1 HUD parts layout is unpatched; check the ARCropolis layout mod path.
+- A missing Training Modpack data-replacement layout should log once and stay inactive; DebugText fallback is only expected on the non-Training-Modpack draw path.
