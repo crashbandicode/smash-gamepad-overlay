@@ -8,6 +8,7 @@ mod input;
 mod layout_inject;
 mod logger;
 mod offsets;
+mod pane_utils;
 mod skin;
 mod ui;
 mod visual;
@@ -24,7 +25,7 @@ use crate::hud::install_non_draw_hud_hooks;
 use crate::input::{logical_control_count, poll_p1_controller};
 #[cfg(sgpo_embed_layout)]
 use crate::layout_inject::install_layout_injection_hook;
-use crate::logger::{reset_trace_file, trace};
+use crate::logger::{log_startup_banner, reset_trace_file, trace, StartupBanner};
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
 };
@@ -61,39 +62,20 @@ unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u6
 #[skyline::main(name = "smash-gamepad-overlay")]
 pub fn main() {
     reset_trace_file();
-    trace("starting P1 input overlay");
-    trace(&format!("build {}", build_info::BUILD_ID));
-    trace(&format!(
-        "git change count {} local build {}",
-        build_info::GIT_CHANGE_COUNT,
-        build_info::LOCAL_BUILD_NUMBER
-    ));
-    trace(&format!(
-        "embedded layout injection {}",
-        if build_info::EMBEDDED_LAYOUT_ENABLED {
-            "enabled"
-        } else {
-            "disabled"
-        }
-    ));
     let smash_display_version = display_version();
-    trace(&format!("Smash display version {smash_display_version}"));
-    trace(&format!(
-        "registered {} logical controls",
-        logical_control_count()
-    ));
-    trace(&format!(
-        "active skin '{}' ({} built-in skins available)",
-        ACTIVE_SKIN.name,
-        built_in_skin_count()
-    ));
-    trace(&format!(
-        "registered {} skin asset metadata entries",
-        built_in_asset_metadata_count()
-    ));
+    log_startup_banner(StartupBanner {
+        build_id: build_info::BUILD_ID,
+        git_change_count: build_info::GIT_CHANGE_COUNT,
+        local_build_number: build_info::LOCAL_BUILD_NUMBER,
+        embedded_layout_enabled: build_info::EMBEDDED_LAYOUT_ENABLED,
+        display_version: &smash_display_version,
+        logical_control_count: logical_control_count(),
+        active_skin: ACTIVE_SKIN.name,
+        built_in_skin_count: built_in_skin_count(),
+        asset_metadata_count: built_in_asset_metadata_count(),
+    });
 
-    let training_modpack_present = training_modpack_plugin_present();
-    if training_modpack_present {
+    if training_modpack_plugin_present() {
         trace("Training Modpack compatibility mode enabled");
         trace(&format!(
             "compatibility triggers: standard Training Modpack path {}, matching *training*modpack*.nro in the plugin folder, or force flag {}",
@@ -104,9 +86,6 @@ pub fn main() {
         trace(
             "Training Modpack compatibility requires the patched info_melee layout to be installed as a normal layout replacement",
         );
-    }
-
-    if training_modpack_present {
         install_non_draw_hud_hooks();
         return;
     }

@@ -219,10 +219,14 @@ def validate_pic1_section(
             )
 
 
-def validate_bflyt_for_patch(
+def load_bflyt(
     path: Path, marker_source_name: str, marker_material_source_name: str | None
-) -> None:
-    data = path.read_bytes()
+) -> tuple[bytearray, tuple[int, int], tuple[int, int], bytes | None]:
+    """Read, magic-check, and locate the sections the patcher needs from a BFLYT.
+
+    Returns (data, root_offset_size, marker_offset_size, material_source_bytes).
+    """
+    data = bytearray(path.read_bytes())
     if data[:4] != b"FLYT":
         raise ValueError(f"not a BFLYT file: {path}")
     if file_size(data) != len(data):
@@ -238,11 +242,10 @@ def validate_bflyt_for_patch(
     root_offset, root_size = find_section_by_pane_name(data, b"pan1", "RootPane")
     validate_section(data, root_offset, root_size, b"pan1", path, "RootPane")
 
-    marker_offset, marker_size = find_section_by_pane_name(
-        data, b"pic1", marker_source_name
-    )
+    marker_offset, marker_size = find_section_by_pane_name(data, b"pic1", marker_source_name)
     validate_pic1_section(data, marker_offset, marker_size, path, marker_source_name)
 
+    material_source: bytes | None = None
     if marker_material_source_name is not None:
         material_offset, material_size = find_section_by_pane_name(
             data, b"pic1", marker_material_source_name
@@ -250,6 +253,17 @@ def validate_bflyt_for_patch(
         validate_pic1_section(
             data, material_offset, material_size, path, marker_material_source_name
         )
+        material_source = bytes(data[material_offset : material_offset + material_size])
+
+    return data, (root_offset, root_size), (marker_offset, marker_size), material_source
+
+
+def validate_bflyt_for_patch(
+    path: Path, marker_source_name: str, marker_material_source_name: str | None
+) -> None:
+    data, _root, _marker, _material = load_bflyt(
+        path, marker_source_name, marker_material_source_name
+    )
 
     root_close_offset = find_root_close_offset(data)
     if data[root_close_offset : root_close_offset + 4] != b"pae1":
@@ -296,15 +310,11 @@ def validate_source_dest_paths(source: Path, dest: Path) -> None:
 def patch_bflyt(
     path: Path, marker_source_name: str, marker_material_source_name: str | None
 ) -> None:
-    data = bytearray(path.read_bytes())
-    if data[:4] != b"FLYT":
-        raise ValueError(f"not a BFLYT file: {path}")
-    if file_size(data) != len(data):
-        raise ValueError(f"BFLYT header size does not match file length for {path}")
     pane_names = [name for name, _pos, _size in PANE_SPECS]
     expected_names = [ROOT_PANE_NAME, *pane_names]
+    raw = path.read_bytes()
     present_names = [
-        name for name in expected_names if name.encode("ascii") + b"\0" in data
+        name for name in expected_names if name.encode("ascii") + b"\0" in raw
     ]
     if len(present_names) == len(expected_names):
         print(f"all SGPO Pro Controller panes already present; leaving {path} unchanged")
@@ -315,20 +325,9 @@ def patch_bflyt(
             "use an unpatched source or regenerate local-assets/original"
         )
 
-    root_offset, root_size = find_section_by_pane_name(data, b"pan1", "RootPane")
-    marker_offset, marker_size = find_section_by_pane_name(
-        data, b"pic1", marker_source_name
+    data, (root_offset, root_size), (marker_offset, marker_size), material_source = load_bflyt(
+        path, marker_source_name, marker_material_source_name
     )
-    validate_pic1_section(data, marker_offset, marker_size, path, marker_source_name)
-    material_source = None
-    if marker_material_source_name is not None:
-        material_offset, material_size = find_section_by_pane_name(
-            data, b"pic1", marker_material_source_name
-        )
-        validate_pic1_section(
-            data, material_offset, material_size, path, marker_material_source_name
-        )
-        material_source = data[material_offset : material_offset + material_size]
 
     sgpo_root = bytearray(data[root_offset : root_offset + root_size])
     set_pane_name(sgpo_root, ROOT_PANE_NAME)

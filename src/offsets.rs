@@ -108,28 +108,23 @@ fn log_draw_offset_diagnostics(needle: &[u8]) {
         haystack.len()
     ));
 
-    if LEGACY_DRAW_OFFSET + needle.len() <= haystack.len() {
-        let legacy_bytes = &haystack[LEGACY_DRAW_OFFSET..LEGACY_DRAW_OFFSET + needle.len()];
-        trace(&format!(
-            "bytes at legacy Layout::Draw .text+0x{LEGACY_DRAW_OFFSET:x}: {}",
-            hex_bytes(legacy_bytes)
-        ));
-
-        let first_instruction = u32::from_le_bytes([
-            legacy_bytes[0],
-            legacy_bytes[1],
-            legacy_bytes[2],
-            legacy_bytes[3],
-        ]);
-        if looks_like_aarch64_branch(first_instruction) {
-            trace(
-                "legacy Layout::Draw starts with a branch; another plugin may have hooked it first",
-            );
-        }
-    } else {
+    if LEGACY_DRAW_OFFSET + needle.len() > haystack.len() {
         trace(&format!(
             "legacy Layout::Draw .text+0x{LEGACY_DRAW_OFFSET:x} is outside scanned text"
         ));
+        log_best_signature_matches("nn::ui2d::Layout::Draw", haystack, needle);
+        return;
+    }
+
+    let legacy_bytes = &haystack[LEGACY_DRAW_OFFSET..LEGACY_DRAW_OFFSET + needle.len()];
+    trace(&format!(
+        "bytes at legacy Layout::Draw .text+0x{LEGACY_DRAW_OFFSET:x}: {}",
+        hex_bytes(legacy_bytes)
+    ));
+
+    let first_instruction = u32::from_le_bytes(legacy_bytes[..4].try_into().unwrap());
+    if looks_like_aarch64_branch(first_instruction) {
+        trace("legacy Layout::Draw starts with a branch; another plugin may have hooked it first");
     }
 
     log_best_signature_matches("nn::ui2d::Layout::Draw", haystack, needle);

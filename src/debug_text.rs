@@ -2,7 +2,6 @@ use skyline::nn::ui2d::{
     HorizontalPosition, Pane, PaneFlag, TextBox, TextBoxFlag, VerticalPosition,
 };
 use std::cell::UnsafeCell;
-use std::ffi::CStr;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -13,6 +12,7 @@ use crate::config::{
 };
 use crate::input::{button_names, gc_trigger_text, npad_id_name, style_name, ControllerSnapshot};
 use crate::logger::trace;
+use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
 use crate::ui::{find_pane_by_name, set_textbox_text};
 
 const EMPTY_TEXT_PANE_NAME: &[u8] = b"\0";
@@ -219,32 +219,6 @@ unsafe fn is_usable_textbox_pane(pane: *mut Pane) -> bool {
         && textbox.font_size_y.is_finite()
 }
 
-unsafe fn pane_name_matches(pane: *mut Pane, expected_name: &[u8]) -> bool {
-    if pane.is_null() {
-        return false;
-    }
-
-    let Ok(expected) = CStr::from_bytes_with_nul(expected_name) else {
-        return false;
-    };
-
-    let name = &(*pane).name;
-    let len = name
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(name.len());
-    let actual = std::slice::from_raw_parts(name.as_ptr() as *const u8, len);
-
-    actual == expected.to_bytes()
-}
-
-fn cstr_bytes_to_str(bytes: &[u8]) -> &str {
-    CStr::from_bytes_with_nul(bytes)
-        .ok()
-        .and_then(|name| name.to_str().ok())
-        .unwrap_or("<invalid>")
-}
-
 unsafe fn position_debug_text(textbox: &mut TextBox, line_index: usize) {
     textbox.pane.set_visible(true);
     textbox.pane.pos_x = DEBUG_TEXT_POS_X;
@@ -273,6 +247,23 @@ fn scaled(value: f32) -> f32 {
     value * OVERLAY_CONFIG.scale
 }
 
+fn p1_header(snapshot: &ControllerSnapshot) -> String {
+    format!(
+        "P1 {} {}",
+        npad_id_name(snapshot.npad_id),
+        style_name(snapshot.style_flags)
+    )
+}
+
+fn stick_line(snapshot: &ControllerSnapshot, trailing: Option<&str>) -> String {
+    let (lx, ly) = snapshot.left_stick;
+    let (rx, ry) = snapshot.right_stick;
+    match trailing {
+        Some(extra) => format!("LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}  {extra}"),
+        None => format!("LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}"),
+    }
+}
+
 fn format_debug_text_lines(
     snapshot: Option<ControllerSnapshot>,
     pane_count: usize,
@@ -286,85 +277,40 @@ fn format_debug_text_lines(
         ];
     };
 
-    let trigger_text = match gc_trigger_text(snapshot.gc_triggers) {
-        Some(text) => text,
-        None => String::from("GC LT --- RT ---"),
-    };
+    let trigger_text =
+        gc_trigger_text(snapshot.gc_triggers).unwrap_or_else(|| String::from("GC LT --- RT ---"));
+    let header = p1_header(&snapshot);
+    let buttons = button_names(snapshot.buttons);
 
-    if pane_count == 1 {
-        return [
+    let (lx, ly) = snapshot.left_stick;
+    let (rx, ry) = snapshot.right_stick;
+    match pane_count {
+        // Case 1 uses single-space separators because it must fit on one line.
+        1 => [
             format!(
-                "P1 {} {} BTN {} LS {:+05},{:+05} RS {:+05},{:+05} {}",
-                npad_id_name(snapshot.npad_id),
-                style_name(snapshot.style_flags),
-                button_names(snapshot.buttons),
-                snapshot.left_stick.0,
-                snapshot.left_stick.1,
-                snapshot.right_stick.0,
-                snapshot.right_stick.1,
-                trigger_text,
+                "{header} BTN {buttons} LS {lx:+05},{ly:+05} RS {rx:+05},{ry:+05} {trigger_text}"
             ),
             String::new(),
             String::new(),
             String::new(),
-        ];
+        ],
+        2 => [
+            format!("{header}  BTN {buttons}"),
+            stick_line(&snapshot, Some(&trigger_text)),
+            String::new(),
+            String::new(),
+        ],
+        3 => [
+            header,
+            format!("BTN {buttons}"),
+            stick_line(&snapshot, Some(&trigger_text)),
+            String::new(),
+        ],
+        _ => [
+            header,
+            format!("BTN {buttons}"),
+            stick_line(&snapshot, None),
+            trigger_text,
+        ],
     }
-
-    if pane_count == 2 {
-        return [
-            format!(
-                "P1 {} {}  BTN {}",
-                npad_id_name(snapshot.npad_id),
-                style_name(snapshot.style_flags),
-                button_names(snapshot.buttons)
-            ),
-            format!(
-                "LS {:+05},{:+05}  RS {:+05},{:+05}  {}",
-                snapshot.left_stick.0,
-                snapshot.left_stick.1,
-                snapshot.right_stick.0,
-                snapshot.right_stick.1,
-                trigger_text,
-            ),
-            String::new(),
-            String::new(),
-        ];
-    }
-
-    if pane_count == 3 {
-        return [
-            format!(
-                "P1 {} {}",
-                npad_id_name(snapshot.npad_id),
-                style_name(snapshot.style_flags)
-            ),
-            format!("BTN {}", button_names(snapshot.buttons)),
-            format!(
-                "LS {:+05},{:+05}  RS {:+05},{:+05}  {}",
-                snapshot.left_stick.0,
-                snapshot.left_stick.1,
-                snapshot.right_stick.0,
-                snapshot.right_stick.1,
-                trigger_text,
-            ),
-            String::new(),
-        ];
-    }
-
-    [
-        format!(
-            "P1 {} {}",
-            npad_id_name(snapshot.npad_id),
-            style_name(snapshot.style_flags)
-        ),
-        format!("BTN {}", button_names(snapshot.buttons)),
-        format!(
-            "LS {:+05},{:+05}  RS {:+05},{:+05}",
-            snapshot.left_stick.0,
-            snapshot.left_stick.1,
-            snapshot.right_stick.0,
-            snapshot.right_stick.1
-        ),
-        trigger_text,
-    ]
 }

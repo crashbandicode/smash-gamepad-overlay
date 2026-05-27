@@ -65,51 +65,42 @@ pub(crate) enum ControlId {
     LeftStickDot,
     RightStickGate,
     RightStickDot,
+    // Logical controls reserved for future skins; matched in control_value but not yet listed
+    // in any built-in skin element table, so dead_code analysis would otherwise flag them.
+    #[allow(dead_code)]
     GcLTrigger,
+    #[allow(dead_code)]
     GcRTrigger,
 }
 
-impl ControlId {
-    const ALL: [Self; 28] = [
-        Self::A,
-        Self::B,
-        Self::X,
-        Self::Y,
-        Self::L,
-        Self::R,
-        Self::ZL,
-        Self::ZR,
-        Self::L3,
-        Self::R3,
-        Self::Plus,
-        Self::Minus,
-        Self::Home,
-        Self::Capture,
-        Self::DpadUp,
-        Self::DpadDown,
-        Self::DpadLeft,
-        Self::DpadRight,
-        Self::DpadUpLeft,
-        Self::DpadUpRight,
-        Self::DpadDownLeft,
-        Self::DpadDownRight,
-        Self::LeftStickGate,
-        Self::LeftStickDot,
-        Self::RightStickGate,
-        Self::RightStickDot,
-        Self::GcLTrigger,
-        Self::GcRTrigger,
-    ];
-}
+pub(crate) const LOGICAL_CONTROL_COUNT: usize = 28;
 
 pub(crate) fn logical_control_count() -> usize {
-    ControlId::ALL.len()
+    LOGICAL_CONTROL_COUNT
 }
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ControlValue {
     pub pressed: bool,
     pub analog: f32,
+}
+
+impl ControlValue {
+    const NEUTRAL: Self = Self {
+        pressed: false,
+        analog: 0.0,
+    };
+
+    const fn digital(pressed: bool) -> Self {
+        Self {
+            pressed,
+            analog: if pressed { 1.0 } else { 0.0 },
+        }
+    }
+
+    const fn analog(pressed: bool, analog: f32) -> Self {
+        Self { pressed, analog }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -147,6 +138,12 @@ impl ControllerViewState {
         }
     }
 
+    pub(crate) fn from_optional_snapshot(snapshot: Option<ControllerSnapshot>) -> Self {
+        snapshot
+            .map(Self::from_snapshot)
+            .unwrap_or_else(Self::neutral)
+    }
+
     pub(crate) fn control_value(&self, control_id: ControlId) -> ControlValue {
         match control_id {
             ControlId::A => self.button_value(BUTTON_A),
@@ -162,10 +159,7 @@ impl ControllerViewState {
             ControlId::Plus => self.button_value(BUTTON_PLUS),
             ControlId::Minus => self.button_value(BUTTON_MINUS),
             // Home/Capture are represented in some skins but are not exposed as match input.
-            ControlId::Home | ControlId::Capture => ControlValue {
-                pressed: false,
-                analog: 0.0,
-            },
+            ControlId::Home | ControlId::Capture => ControlValue::NEUTRAL,
             ControlId::DpadUp => self.button_value(BUTTON_DUP),
             ControlId::DpadDown => self.button_value(BUTTON_DDOWN),
             ControlId::DpadLeft => self.button_value(BUTTON_DLEFT),
@@ -174,10 +168,7 @@ impl ControllerViewState {
             ControlId::DpadUpRight => self.combined_button_value(BUTTON_DUP, BUTTON_DRIGHT),
             ControlId::DpadDownLeft => self.combined_button_value(BUTTON_DDOWN, BUTTON_DLEFT),
             ControlId::DpadDownRight => self.combined_button_value(BUTTON_DDOWN, BUTTON_DRIGHT),
-            ControlId::LeftStickGate | ControlId::RightStickGate => ControlValue {
-                pressed: false,
-                analog: 0.0,
-            },
+            ControlId::LeftStickGate | ControlId::RightStickGate => ControlValue::NEUTRAL,
             ControlId::LeftStickDot => stick_value(self.left_stick),
             ControlId::RightStickDot => stick_value(self.right_stick),
             ControlId::GcLTrigger => trigger_value(self.gc_left_trigger),
@@ -194,24 +185,20 @@ impl ControllerViewState {
     }
 
     fn button_value(&self, mask: u64) -> ControlValue {
-        let pressed = self.buttons & mask != 0;
-        ControlValue {
-            pressed,
-            analog: if pressed { 1.0 } else { 0.0 },
-        }
+        ControlValue::digital(self.buttons & mask != 0)
     }
 
     fn combined_button_value(&self, first_mask: u64, second_mask: u64) -> ControlValue {
-        let pressed = self.buttons & first_mask != 0 && self.buttons & second_mask != 0;
-        ControlValue {
-            pressed,
-            analog: if pressed { 1.0 } else { 0.0 },
-        }
+        ControlValue::digital(self.buttons & first_mask != 0 && self.buttons & second_mask != 0)
     }
 }
 
 pub(crate) unsafe fn poll_p1_controller() -> Option<ControllerSnapshot> {
     poll_controller(NPAD_ID_NO1).or_else(|| poll_controller(NPAD_ID_HANDHELD))
+}
+
+pub(crate) unsafe fn poll_view_state_now() -> ControllerViewState {
+    ControllerViewState::from_optional_snapshot(poll_p1_controller())
 }
 
 unsafe fn poll_controller(npad_id: u32) -> Option<ControllerSnapshot> {
@@ -280,49 +267,51 @@ pub(crate) fn gc_trigger_text(triggers: Option<(u32, u32)>) -> Option<String> {
     triggers.map(|(left, right)| format!("GC LT {left:03} RT {right:03}"))
 }
 
+// Order matters: GameCube reports first because its flag can coexist with
+// other style bits, and we want the most specific label.
+const STYLE_LABELS: &[(u32, &str)] = &[
+    (NPAD_STYLE_GAMECUBE, "GC"),
+    (NPAD_STYLE_FULL_KEY, "FullKey"),
+    (NPAD_STYLE_HANDHELD, "Handheld"),
+    (NPAD_STYLE_JOY_DUAL, "JoyDual"),
+    (NPAD_STYLE_JOY_LEFT, "JoyLeft"),
+    (NPAD_STYLE_JOY_RIGHT, "JoyRight"),
+];
+
+const BUTTON_LABELS: &[(u64, &str)] = &[
+    (BUTTON_A, "A"),
+    (BUTTON_B, "B"),
+    (BUTTON_X, "X"),
+    (BUTTON_Y, "Y"),
+    (BUTTON_LSTICK, "LS"),
+    (BUTTON_RSTICK, "RS"),
+    (BUTTON_L, "L"),
+    (BUTTON_R, "R"),
+    (BUTTON_ZL, "ZL"),
+    (BUTTON_ZR, "ZR"),
+    (BUTTON_PLUS, "+"),
+    (BUTTON_MINUS, "-"),
+    (BUTTON_DLEFT, "DL"),
+    (BUTTON_DUP, "DU"),
+    (BUTTON_DRIGHT, "DR"),
+    (BUTTON_DDOWN, "DD"),
+    (BUTTON_SL_LEFT, "SL-L"),
+    (BUTTON_SR_LEFT, "SR-L"),
+    (BUTTON_SL_RIGHT, "SL-R"),
+    (BUTTON_SR_RIGHT, "SR-R"),
+];
+
 pub(crate) fn style_name(style_flags: u32) -> &'static str {
-    if style_flags & NPAD_STYLE_GAMECUBE != 0 {
-        "GC"
-    } else if style_flags & NPAD_STYLE_FULL_KEY != 0 {
-        "FullKey"
-    } else if style_flags & NPAD_STYLE_HANDHELD != 0 {
-        "Handheld"
-    } else if style_flags & NPAD_STYLE_JOY_DUAL != 0 {
-        "JoyDual"
-    } else if style_flags & NPAD_STYLE_JOY_LEFT != 0 {
-        "JoyLeft"
-    } else if style_flags & NPAD_STYLE_JOY_RIGHT != 0 {
-        "JoyRight"
-    } else {
-        "Unknown"
-    }
+    STYLE_LABELS
+        .iter()
+        .find_map(|&(mask, name)| (style_flags & mask != 0).then_some(name))
+        .unwrap_or("Unknown")
 }
 
 pub(crate) fn button_names(buttons: u64) -> String {
     let mut names = String::new();
 
-    for (mask, name) in [
-        (BUTTON_A, "A"),
-        (BUTTON_B, "B"),
-        (BUTTON_X, "X"),
-        (BUTTON_Y, "Y"),
-        (BUTTON_LSTICK, "LS"),
-        (BUTTON_RSTICK, "RS"),
-        (BUTTON_L, "L"),
-        (BUTTON_R, "R"),
-        (BUTTON_ZL, "ZL"),
-        (BUTTON_ZR, "ZR"),
-        (BUTTON_PLUS, "+"),
-        (BUTTON_MINUS, "-"),
-        (BUTTON_DLEFT, "DL"),
-        (BUTTON_DUP, "DU"),
-        (BUTTON_DRIGHT, "DR"),
-        (BUTTON_DDOWN, "DD"),
-        (BUTTON_SL_LEFT, "SL-L"),
-        (BUTTON_SR_LEFT, "SR-L"),
-        (BUTTON_SL_RIGHT, "SL-R"),
-        (BUTTON_SR_RIGHT, "SR-R"),
-    ] {
+    for &(mask, name) in BUTTON_LABELS {
         if buttons & mask != 0 {
             if !names.is_empty() {
                 names.push(' ');
@@ -354,15 +343,12 @@ fn stick_value(stick: (f32, f32)) -> ControlValue {
     let analog = (stick.0 * stick.0 + stick.1 * stick.1)
         .sqrt()
         .clamp(0.0, 1.0);
-    ControlValue {
-        pressed: analog > 0.08,
-        analog,
-    }
+    ControlValue::analog(analog > 0.08, analog)
 }
 
 fn trigger_value(value: f32) -> ControlValue {
-    ControlValue {
-        pressed: value > normalize_trigger(VISUAL_TRIGGER_ACTIVE_THRESHOLD),
-        analog: value,
-    }
+    ControlValue::analog(
+        value > normalize_trigger(VISUAL_TRIGGER_ACTIVE_THRESHOLD),
+        value,
+    )
 }

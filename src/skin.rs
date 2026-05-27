@@ -388,6 +388,27 @@ const SWITCH_PRO_ALT_ELEMENTS: [SkinElement; 20] = [
     ),
 ];
 
+// Defaults used by all SkinElement builders. Each builder applies struct-update
+// syntax on top of this base so only the fields that differ from a neutral,
+// fully visible, non-stick element need to be spelled out at the call site.
+const BLANK_ELEMENT: SkinElement = SkinElement {
+    control_id: ControlId::A,
+    pane_name: b"\0",
+    image_name: None,
+    material_name: None,
+    base_x: 0.0,
+    base_y: 0.0,
+    size_x: 0.0,
+    size_y: 0.0,
+    released_alpha: 255,
+    pressed_alpha: 255,
+    released_scale: 1.0,
+    pressed_scale: 1.0,
+    released_visible: true,
+    pressed_visible: true,
+    stick_movement: None,
+};
+
 const fn minimal_button(
     control_id: ControlId,
     pane_name: &'static [u8],
@@ -399,19 +420,13 @@ const fn minimal_button(
     SkinElement {
         control_id,
         pane_name,
-        image_name: None,
-        material_name: None,
         base_x,
         base_y,
         size_x,
         size_y,
         released_alpha: 70,
-        pressed_alpha: 255,
-        released_scale: 1.0,
         pressed_scale: 1.22,
-        released_visible: true,
-        pressed_visible: true,
-        stick_movement: None,
+        ..BLANK_ELEMENT
     }
 }
 
@@ -427,19 +442,13 @@ const fn minimal_static_marker(
     SkinElement {
         control_id,
         pane_name,
-        image_name: None,
-        material_name: None,
         base_x,
         base_y,
         size_x,
         size_y,
         released_alpha: alpha,
         pressed_alpha: alpha,
-        released_scale: 1.0,
-        pressed_scale: 1.0,
-        released_visible: true,
-        pressed_visible: true,
-        stick_movement: None,
+        ..BLANK_ELEMENT
     }
 }
 
@@ -456,22 +465,16 @@ const fn minimal_stick_dot(
     SkinElement {
         control_id,
         pane_name,
-        image_name: None,
-        material_name: None,
         base_x,
         base_y,
         size_x,
         size_y,
         released_alpha: 190,
-        pressed_alpha: 255,
-        released_scale: 1.0,
-        pressed_scale: 1.0,
-        released_visible: true,
-        pressed_visible: true,
         stick_movement: Some(StickMovementRange {
             x: movement_x,
             y: movement_y,
         }),
+        ..BLANK_ELEMENT
     }
 }
 
@@ -488,18 +491,13 @@ const fn image_button(
         control_id,
         pane_name,
         image_name: Some(image_name),
-        material_name: None,
         base_x,
         base_y,
         size_x,
         size_y,
         released_alpha: 70,
-        pressed_alpha: 255,
-        released_scale: 1.0,
         pressed_scale: 1.05,
-        released_visible: true,
-        pressed_visible: true,
-        stick_movement: None,
+        ..BLANK_ELEMENT
     }
 }
 
@@ -518,20 +516,14 @@ const fn image_stick(
         control_id,
         pane_name,
         image_name: Some(image_name),
-        material_name: None,
         base_x,
         base_y,
         size_x,
         size_y,
-        released_alpha: 255,
-        pressed_alpha: 255,
-        released_scale: 1.0,
-        pressed_scale: 1.0,
-        released_visible: true,
-        pressed_visible: true,
         stick_movement: Some(StickMovementRange {
             x: movement_x,
             y: movement_y,
         }),
+        ..BLANK_ELEMENT
     }
 }

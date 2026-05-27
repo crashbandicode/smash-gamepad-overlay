@@ -189,10 +189,3 @@ fn log_captured_layout_probe(layout_data: u64, name: &[u8]) {
         std::str::from_utf8(name).unwrap_or("<non-utf8>")
     ));
 }
-
-pub(super) fn cstr_bytes_to_str(bytes: &[u8]) -> &str {
-    std::ffi::CStr::from_bytes_with_nul(bytes)
-        .ok()
-        .and_then(|name| name.to_str().ok())
-        .unwrap_or("<invalid>")
-}
