@@ -312,8 +312,8 @@ pub(crate) unsafe fn update_visual_skin_pane(
         .unwrap_or((0.0, 0.0));
 
     (*pane).set_visible(visible);
-    (*pane).pos_x = scaled(element.base_x + stick_x);
-    (*pane).pos_y = scaled(element.base_y + stick_y);
+    (*pane).pos_x = element.base_x + stick_x;
+    (*pane).pos_y = element.base_y + stick_y;
     (*pane).pos_z = 0.0;
     (*pane).scale_x = element_scale;
     (*pane).scale_y = element_scale;
@@ -333,8 +333,4 @@ fn interpolate_alpha(released_alpha: u8, pressed_alpha: u8, analog: f32) -> u8 {
 fn interpolate_scale(released_scale: f32, pressed_scale: f32, analog: f32) -> f32 {
     let analog = analog.clamp(0.0, 1.0);
     released_scale + (pressed_scale - released_scale) * analog
-}
-
-fn scaled(value: f32) -> f32 {
-    value * OVERLAY_CONFIG.scale
 }
