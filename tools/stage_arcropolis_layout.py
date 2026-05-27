@@ -8,6 +8,8 @@ import os
 import shutil
 from pathlib import Path
 
+from patch_info_melee_layout import PANE_SPECS, ROOT_PANE_NAME
+
 
 DEFAULT_LAYOUT = Path("local-assets/modified/info_melee/layout.arc")
 DEFAULT_DEST = Path("target/arcropolis/smash-gamepad-overlay")
@@ -16,10 +18,8 @@ ARCPOLIS_LAYOUT_PATH = Path("ui/layout/info/info_melee/info_melee/layout.arc")
 MOD_FOLDER_NAME = "smash-gamepad-overlay"
 TRUE_VALUES = {"1", "true", "yes", "on"}
 REQUIRED_MARKERS = [
-    b"sgpo_root",
-    b"sgpo_pro_a_marker",
-    b"sgpo_pro_ls_dot",
-    b"sgpo_pro_rs_dot",
+    ROOT_PANE_NAME.encode("ascii"),
+    *(name.encode("ascii") for name, _pos, _size in PANE_SPECS),
 ]
 
 

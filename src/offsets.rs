@@ -4,7 +4,8 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use crate::config::{
-    BEST_MATCHES_TO_LOG, LEGACY_DRAW_OFFSET, TEXT_SCAN_ALIGNMENT, TRAINING_MODPACK_PLUGIN_PATH,
+    BEST_MATCHES_TO_LOG, FORCE_TRAINING_MODPACK_COMPAT_FLAG_PATH, LEGACY_DRAW_OFFSET,
+    SKYLINE_PLUGIN_DIR, TEXT_SCAN_ALIGNMENT, TRAINING_MODPACK_PLUGIN_PATH,
 };
 use crate::logger::{hex_bytes, trace};
 
@@ -179,7 +180,31 @@ fn looks_like_aarch64_branch(instruction: u32) -> bool {
 }
 
 pub(crate) fn training_modpack_plugin_present() -> bool {
-    Path::new(TRAINING_MODPACK_PLUGIN_PATH).exists()
+    Path::new(FORCE_TRAINING_MODPACK_COMPAT_FLAG_PATH).exists()
+        || Path::new(TRAINING_MODPACK_PLUGIN_PATH).exists()
+        || training_modpack_like_plugin_present()
+}
+
+fn training_modpack_like_plugin_present() -> bool {
+    let Ok(entries) = std::fs::read_dir(SKYLINE_PLUGIN_DIR) else {
+        return false;
+    };
+
+    entries.filter_map(Result::ok).any(|entry| {
+        let path = entry.path();
+        let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+            return false;
+        };
+        if !extension.eq_ignore_ascii_case("nro") {
+            return false;
+        }
+
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            return false;
+        };
+        let file_name = file_name.to_ascii_lowercase();
+        file_name.contains("training") && file_name.contains("modpack")
+    })
 }
 
 pub(crate) fn display_version() -> String {

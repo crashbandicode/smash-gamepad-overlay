@@ -14,7 +14,7 @@ The first milestone is intentionally small:
 - Current tested environment notes: ARCropolis `4.0.7`, Atmosphere `1.11.1`, and Eden `0.1.0`.
 - Without Training Modpack, the known-good path still uses `nn::ui2d::Layout::Draw`, which resolves to `.text+0x4b620` in the tested setup.
 - The normal draw path is gated to display version `13.0.4` because its ui2d helper offsets are version-specific.
-- With Training Modpack present at its standard plugin path, this plugin skips the shared `Layout::Draw` hook and uses a non-draw HUD capture/update path.
+- With Training Modpack compatibility detected, this plugin skips the shared `Layout::Draw` hook and uses a non-draw HUD capture/update path.
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
 - The overlay has two display modes: `Visual` and `DebugText`.
@@ -78,7 +78,7 @@ Do not use embedded layout injection with Training Modpack. The default build ke
 
 For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
 
-The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path.
+The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path. The staging script validates every pane required by the active generated skin before copying the layout.
 
 Validate the patcher's BFLYT/pic1 assumptions against your unpacked source layout:
 
@@ -206,7 +206,13 @@ For emulator testing, use the equivalent mod/plugin path for the emulator's Smas
 
 ## Training Modpack
 
-Training Modpack hooks both `Layout::Draw` and the same layout-arc handoff that SGPO can optionally use for NRO-embedded layouts. To coexist, the default SGPO build does not include the embedded layout hook and does not install the draw hook while Training Modpack is detected.
+Training Modpack hooks both `Layout::Draw` and the same layout-arc handoff that SGPO can optionally use for NRO-embedded layouts. To coexist, the default SGPO build does not include the embedded layout hook and does not install the draw hook while Training Modpack compatibility mode is active.
+
+Compatibility mode is enabled when SGPO sees the standard Training Modpack NRO path, any `*training*modpack*.nro` file in the Skyline plugin folder, or this force flag:
+
+```text
+sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT
+```
 
 In this mode, SGPO renders in normal matches and in Smash Training mode by default. To hide SGPO in Training mode while leaving it enabled everywhere else, create this empty flag file:
 
@@ -257,6 +263,7 @@ If Training Modpack is loaded and the log says `could not find ... sgpo_root`, S
 - The visual HUD is intentionally rough programmer art. It uses cloned picture panes, not custom textures or labels.
 - Training Modpack compatibility depends on installing the patched `info_melee/layout.arc` as a normal data replacement. Keep `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT` unset for Training Modpack builds.
 - The Training Modpack path currently captures P1's HUD parts layout, so placement is local to the P1 HUD and cannot reach true bottom-right without clipping. This keeps the overlay tied to player-HUD pause visibility.
+- The Training Modpack path captures panes from the HUD info-alpha hook and drives live input updates from the scene-update hook. Cached panes are revalidated by expected pane name before update.
 - Training mode uses a separate left-side P1 HUD-local placement to avoid the CPU overlay near P1.
 - The visual HUD is pane-based. It does not use custom textures yet.
 

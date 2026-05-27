@@ -17,10 +17,14 @@ pub(crate) const PLUGIN_NAME: &str = "smash-gamepad-overlay";
 pub(crate) const LOG_PATH: &str = "sd:/smash-gamepad-overlay.log";
 
 pub(crate) const MATCH_HUD_LAYOUT: &str = "info_melee";
+pub(crate) const SKYLINE_PLUGIN_DIR: &str =
+    "sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins";
 pub(crate) const TRAINING_MODPACK_PLUGIN_PATH: &str =
     "sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libtraining_modpack.nro";
 pub(crate) const HIDE_TRAINING_GAMEPAD_FLAG_PATH: &str =
     "sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD";
+pub(crate) const FORCE_TRAINING_MODPACK_COMPAT_FLAG_PATH: &str =
+    "sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT";
 
 pub(crate) const NPAD_ID_NO1: u32 = 0;
 pub(crate) const NPAD_ID_HANDHELD: u32 = 0x20;
@@ -102,7 +106,7 @@ pub(crate) const DEBUG_TEXT_POS_Y: f32 = 285.0;
 pub(crate) const DEBUG_TEXT_FONT_SIZE: f32 = 16.0;
 pub(crate) const DEBUG_TEXT_LINE_HEIGHT: f32 = 19.0;
 
-pub(crate) const OVERLAY_LINE_TEXT_PANES: [&[u8]; 18] = [
+pub(crate) const OVERLAY_LINE_TEXT_PANES: [&[u8]; 15] = [
     b"set_txt_00\0",
     b"set_txt_01\0",
     b"set_txt_02\0",
@@ -118,7 +122,4 @@ pub(crate) const OVERLAY_LINE_TEXT_PANES: [&[u8]; 18] = [
     b"set_txt_player_name\0",
     b"txt_player_name\0",
     b"txt_name\0",
-    b"name\0",
-    b"set_txt\0",
-    b"txt\0",
 ];

@@ -1,6 +1,7 @@
 use skyline::hooks::InlineCtx;
 use skyline::nn::ui2d::{Layout, Pane, PaneFlag};
 use std::cell::UnsafeCell;
+use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::{OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG};
@@ -18,6 +19,11 @@ pub(crate) enum VisualRenderError {
     MissingSkinPane {
         skin_name: &'static str,
         pane_name: &'static [u8],
+    },
+    SkinTooLarge {
+        skin_name: &'static str,
+        element_count: usize,
+        max_elements: usize,
     },
 }
 
@@ -181,10 +187,12 @@ impl ResolvedSkin {
     ) -> bool {
         self.is_for(layout, layout_root, skin)
             && !self.skin_root.is_null()
+            && unsafe { pane_name_matches(self.skin_root, skin.root_pane_name) }
             && self.pane_count == skin.elements.len()
             && self.panes[..self.pane_count]
                 .iter()
-                .all(|pane| !pane.is_null())
+                .zip(skin.elements.iter())
+                .all(|(pane, element)| unsafe { pane_name_matches(*pane, element.pane_name) })
     }
 }
 
@@ -252,6 +260,8 @@ unsafe fn resolve_skin(
     root_pane: *mut Pane,
     skin: &'static BuiltInSkin,
 ) -> Result<ResolvedSkin, VisualRenderError> {
+    validate_skin_size(skin)?;
+
     let skin_root = find_named_pane(root_pane, skin, skin.root_pane_name)?;
     let mut resolved = ResolvedSkin::new(layout, root_pane, skin, skin_root);
 
@@ -272,6 +282,18 @@ unsafe fn resolve_skin(
     }
 
     Ok(resolved)
+}
+
+pub(crate) fn validate_skin_size(skin: &BuiltInSkin) -> Result<(), VisualRenderError> {
+    if skin.elements.len() > MAX_RESOLVED_SKIN_ELEMENTS {
+        Err(VisualRenderError::SkinTooLarge {
+            skin_name: skin.name,
+            element_count: skin.elements.len(),
+            max_elements: MAX_RESOLVED_SKIN_ELEMENTS,
+        })
+    } else {
+        Ok(())
+    }
 }
 
 unsafe fn update_resolved_skin(
@@ -389,4 +411,23 @@ fn interpolate_alpha(released_alpha: u8, pressed_alpha: u8, analog: f32) -> u8 {
 fn interpolate_scale(released_scale: f32, pressed_scale: f32, analog: f32) -> f32 {
     let analog = analog.clamp(0.0, 1.0);
     released_scale + (pressed_scale - released_scale) * analog
+}
+
+pub(crate) unsafe fn pane_name_matches(pane: *mut Pane, expected_name: &'static [u8]) -> bool {
+    if pane.is_null() {
+        return false;
+    }
+
+    let Ok(expected) = CStr::from_bytes_with_nul(expected_name) else {
+        return false;
+    };
+
+    let name = &(*pane).name;
+    let len = name
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(name.len());
+    let actual = std::slice::from_raw_parts(name.as_ptr() as *const u8, len);
+
+    actual == expected.to_bytes()
 }
