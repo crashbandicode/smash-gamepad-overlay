@@ -37,7 +37,10 @@ pub(crate) struct ControllerSnapshot {
     pub gc_triggers: Option<(u32, u32)>,
 }
 
+// `#[repr(u8)]` pins discriminants to 0..=N so the static assert below can
+// derive the variant count at compile time. 28 variants fits easily in a byte.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
 pub(crate) enum ControlId {
     A,
     B,
@@ -74,6 +77,14 @@ pub(crate) enum ControlId {
 }
 
 pub(crate) const LOGICAL_CONTROL_COUNT: usize = 28;
+
+// Compile-time guard: bump LOGICAL_CONTROL_COUNT whenever a ControlId variant is
+// added or removed. The assertion uses GcRTrigger as the last variant so the
+// build breaks immediately if the enum and the constant drift apart.
+const _: () = assert!(
+    LOGICAL_CONTROL_COUNT == ControlId::GcRTrigger as usize + 1,
+    "LOGICAL_CONTROL_COUNT is out of sync with the ControlId enum",
+);
 
 pub(crate) fn logical_control_count() -> usize {
     LOGICAL_CONTROL_COUNT

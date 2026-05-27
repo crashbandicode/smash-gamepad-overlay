@@ -65,3 +65,13 @@ The manifest contains one entry per mapped control:
 The tool validates that the generated manifest exactly matches the inactive
 `switch_pro_alt_builtin` Rust target. It does not copy PNGs, generate
 Nintendo layout assets, or write a modified `layout.arc`.
+
+Parser regression tests cover the Rust-source parsing used by the analyzer:
+
+```bash
+python -m unittest tools.tests.test_analyze_retrospy_skin
+```
+
+The next planning document is `docs/skin-layout-generation-plan.md`. It records
+the BFLYT/BNTX/layout work needed before converting the dry-run manifest into
+real PNG-backed Smash UI panes.

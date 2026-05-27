@@ -55,6 +55,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - `SkinElement`: maps a control to a pane name, optional source image/material names, base position, size, alpha/visibility/scale states, and optional x/y stick movement range.
   - Active built-in skin: `minimal_debug`.
   - Inactive built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout as data only.
+- `ControlId` is `#[repr(u8)]`; a compile-time assertion keeps `LOGICAL_CONTROL_COUNT` synchronized with the enum.
 - Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match `ACTIVE_SKIN`.
 - Active skins with more than `MAX_RESOLVED_SKIN_ELEMENTS` are rejected explicitly before pane resolution.
 - Custom-skin direction:
@@ -131,6 +132,9 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
   - `SGPO_EMU_LOG_PATH` can point at the emulator `sdmc/smash-gamepad-overlay.log` for quick reference.
   - Use `--no-emu` to force target-only staging, or `--skip-nro` for layout-only emulator staging.
 - Machine-specific emulator paths belong in the local ignored `.env`, not in git.
+- `tools/analyze_retrospy_skin.py` parses RetroSpy-style `skin.xml`, emits repo-safe dry-run manifest/report files under `target/`, and validates the generated manifest against `switch_pro_alt_builtin`.
+- `tools/tests/test_analyze_retrospy_skin.py` covers the analyzer's Rust-source parsers with fixtures plus live-source backstops for `src/input.rs` and `src/skin.rs`.
+- `docs/skin-layout-generation-plan.md` is the current plan for turning the dry-run manifest into real PNG-backed `pic1` panes. It intentionally defers BNTX import and full material/texture generation until a one-pane proof is manually verified.
 - Current custom pane tree:
   - `sgpo_root`
   - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`
@@ -209,3 +213,4 @@ Eden/WSL local log path:
 - Run the alpha validation checklist after cache/layout changes.
 - Keep the A marker as the rollback/stability baseline.
 - Keep Switch testing conservative; text-box flag changes can freeze at match start.
+- Next skin milestone should be a one-pane PNG-backed proof for `sgpo_alt_face_a`, generated into ignored local output only, with `minimal_debug` still active.
