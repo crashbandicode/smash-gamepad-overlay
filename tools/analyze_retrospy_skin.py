@@ -210,16 +210,12 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(report, encoding="utf-8")
     write_manifest_files(args.manifest_dir, manifest, manifest_validation_errors)
-    if args.rust_preview:
-        write_rust_preview(args.manifest_dir, manifest)
 
     mapped = [control for control in controls if control.control_id]
     unmapped = [control for control in controls if not control.control_id]
     print(f"Wrote {args.out}")
     print(f"Wrote {args.manifest_dir / 'skin_manifest.json'}")
     print(f"Wrote {args.manifest_dir / 'skin_manifest.md'}")
-    if args.rust_preview:
-        print(f"Wrote {args.manifest_dir / 'skin_manifest_preview.rs'}")
     print(
         f"Parsed {len(controls)} controls ({len(mapped)} mapped, "
         f"{len(unmapped)} unsupported/unmapped) from {skin_xml}"
@@ -281,11 +277,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_MANIFEST_DIR,
         help=f"Dry-run manifest output directory (default: {DEFAULT_MANIFEST_DIR})",
-    )
-    parser.add_argument(
-        "--rust-preview",
-        action="store_true",
-        help="Also write a generated Rust preview table under the manifest directory.",
     )
     return parser.parse_args()
 
@@ -749,34 +740,6 @@ def build_manifest_markdown(manifest: dict, validation_errors: list[str]) -> str
     lines.append("- PNGs and Nintendo layout assets remain external to git/release artifacts.")
     lines.append("")
     return "\n".join(lines)
-
-
-def write_rust_preview(manifest_dir: Path, manifest: dict) -> None:
-    lines: list[str] = []
-    lines.append("// Generated dry-run preview only. Do not paste blindly into runtime code.")
-    lines.append("// Source: tools/analyze_retrospy_skin.py")
-    lines.append("")
-    lines.append("const GENERATED_SWITCH_PRO_ALT_ELEMENTS: &[SkinElement] = &[")
-    for element in manifest["elements"]:
-        function = "image_stick" if element["stick_movement"] else "image_button"
-        args = [
-            f"ControlId::{element['control_id']}",
-            f"b\"{element['pane_name']}\\0\"",
-            f"\"{element['image_filename']}\"",
-            f"{element['base_x']:.1f}",
-            f"{element['base_y']:.1f}",
-            f"{element['width']:.1f}",
-            f"{element['height']:.1f}",
-        ]
-        if element["stick_movement"]:
-            args.append(f"{element['stick_movement']['x']:.1f}")
-            args.append(f"{element['stick_movement']['y']:.1f}")
-        lines.append(f"    {function}({', '.join(args)}),")
-    lines.append("];")
-    lines.append("")
-    (manifest_dir / "skin_manifest_preview.rs").write_text(
-        "\n".join(lines), encoding="utf-8"
-    )
 
 
 def validate_manifest_against_builtin(

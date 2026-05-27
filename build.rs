@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::UNIX_EPOCH;
 
-const MODIFIED_LAYOUT_ARC: &str = "local-assets/modified/info_melee/layout.arc";
-const EMBED_LAYOUT_ENV: &str = "SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT";
 const FINGERPRINT_INPUTS: &[&str] = &[
     "src",
     "tools",
@@ -18,65 +16,27 @@ const FINGERPRINT_INPUTS: &[&str] = &[
 ];
 
 fn main() {
-    println!("cargo:rustc-check-cfg=cfg(sgpo_embed_layout)");
-    println!("cargo:rerun-if-changed={MODIFIED_LAYOUT_ARC}");
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=SMASH_GAMEPAD_OVERLAY_BUILD_ID");
-    println!("cargo:rerun-if-env-changed={EMBED_LAYOUT_ENV}");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
-    let generated = out_dir.join("sgpo_layout_arc.rs");
     let generated_build_info = out_dir.join("sgpo_build_info.rs");
-    let source = Path::new(MODIFIED_LAYOUT_ARC);
-    let embed_layout = env_flag_enabled(EMBED_LAYOUT_ENV);
     let change_number = git_change_number();
     let build_number = increment_build_number();
-
-    if source.exists() && embed_layout {
-        println!("cargo:rustc-cfg=sgpo_embed_layout");
-
-        let copied = out_dir.join("info_melee_layout.arc");
-        fs::copy(source, &copied).expect("failed to copy modified info_melee layout.arc");
-        fs::write(
-            generated,
-            format!(
-                "pub(crate) const INJECTED_LAYOUT_ARC_AVAILABLE: bool = true;\n\
-                 pub(crate) static INJECTED_LAYOUT_ARC: &[u8] = include_bytes!(r#\"{}\"#);\n",
-                copied.display()
-            ),
-        )
-        .expect("failed to write generated layout include");
-    } else {
-        fs::write(
-            generated,
-            "pub(crate) const INJECTED_LAYOUT_ARC_AVAILABLE: bool = false;\n\
-             pub(crate) static INJECTED_LAYOUT_ARC: &[u8] = &[];\n",
-        )
-        .expect("failed to write generated empty layout include");
-    }
 
     fs::write(
         generated_build_info,
         format!(
             "pub(crate) const BUILD_ID: &str = {:?};\n\
              pub(crate) const GIT_CHANGE_COUNT: u32 = {};\n\
-             pub(crate) const LOCAL_BUILD_NUMBER: u64 = {};\n\
-             pub(crate) const EMBEDDED_LAYOUT_ENABLED: bool = {};\n",
+             pub(crate) const LOCAL_BUILD_NUMBER: u64 = {};\n",
             build_id(change_number, build_number),
             change_number,
-            build_number,
-            embed_layout
+            build_number
         ),
     )
     .expect("failed to write generated build info");
-}
-
-fn env_flag_enabled(name: &str) -> bool {
-    matches!(
-        env::var(name).as_deref(),
-        Ok("1") | Ok("true") | Ok("yes") | Ok("on")
-    )
 }
 
 fn git_change_number() -> u32 {

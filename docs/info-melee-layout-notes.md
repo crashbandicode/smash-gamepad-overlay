@@ -119,15 +119,13 @@ Notes:
 
 The root copy supports the normal `Layout::Draw` renderer. The player-parts copies support the Training Modpack compatibility renderer, which captures P1's HUD parts layout instead of hooking `Layout::Draw`.
 
-The default build does not include the NRO-embedded layout hook. Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement for:
+Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement for:
 
 ```text
 ui/layout/info/info_melee/info_melee/layout.arc
 ```
 
 Do not commit or publish this generated layout file.
-
-The old embedded layout hook can be built with `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1`, but do not use that build with Training Modpack.
 
 This gives the Rust plugin real Smash UI panes to find and update:
 

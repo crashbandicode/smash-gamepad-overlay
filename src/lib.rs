@@ -4,8 +4,6 @@ mod config;
 mod debug_text;
 mod hud;
 mod input;
-#[cfg(sgpo_embed_layout)]
-mod layout_inject;
 mod logger;
 mod offsets;
 mod pane_utils;
@@ -23,8 +21,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::config::MATCH_HUD_LAYOUT;
 use crate::hud::install_non_draw_hud_hooks;
 use crate::input::{logical_control_count, poll_p1_controller};
-#[cfg(sgpo_embed_layout)]
-use crate::layout_inject::install_layout_injection_hook;
 use crate::logger::{log_startup_banner, reset_trace_file, trace, StartupBanner};
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
@@ -67,7 +63,6 @@ pub fn main() {
         build_id: build_info::BUILD_ID,
         git_change_count: build_info::GIT_CHANGE_COUNT,
         local_build_number: build_info::LOCAL_BUILD_NUMBER,
-        embedded_layout_enabled: build_info::EMBEDDED_LAYOUT_ENABLED,
         display_version: &smash_display_version,
         logical_control_count: logical_control_count(),
         active_skin: ACTIVE_SKIN.name,
@@ -97,11 +92,7 @@ pub fn main() {
         return;
     }
 
-    #[cfg(sgpo_embed_layout)]
-    install_layout_injection_hook();
-
-    #[cfg(not(sgpo_embed_layout))]
-    trace("embedded layout injection disabled; install patched info_melee layout as a normal data replacement");
+    trace("install patched info_melee layout as a normal data replacement");
 
     install_draw_path_visual_reset_hooks();
 

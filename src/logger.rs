@@ -34,7 +34,6 @@ pub(crate) struct StartupBanner<'a> {
     pub build_id: &'a str,
     pub git_change_count: u32,
     pub local_build_number: u64,
-    pub embedded_layout_enabled: bool,
     pub display_version: &'a str,
     pub logical_control_count: usize,
     pub active_skin: &'a str,
@@ -48,14 +47,6 @@ pub(crate) fn log_startup_banner(banner: StartupBanner<'_>) {
     trace(&format!(
         "git change count {} local build {}",
         banner.git_change_count, banner.local_build_number
-    ));
-    trace(&format!(
-        "embedded layout injection {}",
-        if banner.embedded_layout_enabled {
-            "enabled"
-        } else {
-            "disabled"
-        }
     ));
     trace(&format!("Smash display version {}", banner.display_version));
     trace(&format!(
