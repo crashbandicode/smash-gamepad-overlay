@@ -2,13 +2,13 @@ use skyline::nn::ui2d::{Layout, Pane, PaneFlag};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::OVERLAY_CONFIG;
+use crate::config::{OverlayConfig, OVERLAY_CONFIG};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::skin::{BuiltInSkin, SkinElement, PRO_CONTROLLER_STATIC_SKIN};
 use crate::ui::find_pane_by_name;
 
-const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
+pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum VisualRenderError {
@@ -223,13 +223,13 @@ unsafe fn update_resolved_skin(
     skin: &BuiltInSkin,
     state: &ControllerViewState,
 ) {
-    update_skin_root(resolved.skin_root);
+    update_visual_skin_root(resolved.skin_root);
 
     for (pane, element) in resolved.panes[..resolved.pane_count]
         .iter()
         .zip(skin.elements.iter())
     {
-        update_skin_pane(*pane, element, state);
+        update_visual_skin_pane(*pane, element, state);
     }
 }
 
@@ -257,19 +257,38 @@ unsafe fn find_named_pane(
     }
 }
 
-unsafe fn update_skin_root(pane: *mut Pane) {
+pub(crate) unsafe fn update_visual_skin_root(pane: *mut Pane) {
+    update_visual_skin_root_with_config(pane, &OVERLAY_CONFIG);
+}
+
+pub(crate) unsafe fn update_visual_skin_root_with_config(pane: *mut Pane, config: &OverlayConfig) {
     (*pane).set_visible(true);
-    (*pane).pos_x = OVERLAY_CONFIG.x;
-    (*pane).pos_y = OVERLAY_CONFIG.y;
+    (*pane).pos_x = config.x;
+    (*pane).pos_y = config.y;
     (*pane).pos_z = 0.0;
-    (*pane).scale_x = OVERLAY_CONFIG.scale;
-    (*pane).scale_y = OVERLAY_CONFIG.scale;
-    (*pane).alpha = OVERLAY_CONFIG.opacity;
-    (*pane).global_alpha = OVERLAY_CONFIG.opacity;
+    (*pane).scale_x = config.scale;
+    (*pane).scale_y = config.scale;
+    (*pane).alpha = config.opacity;
+    (*pane).global_alpha = config.opacity;
     (*pane).flags |= 1 << PaneFlag::IsGlobalMatrixDirty as u8;
 }
 
-unsafe fn update_skin_pane(pane: *mut Pane, element: &SkinElement, state: &ControllerViewState) {
+pub(crate) unsafe fn hide_visual_skin_root(pane: *mut Pane) {
+    if pane.is_null() {
+        return;
+    }
+
+    (*pane).alpha = 0;
+    (*pane).global_alpha = 0;
+    (*pane).set_visible(false);
+    (*pane).flags |= 1 << PaneFlag::IsGlobalMatrixDirty as u8;
+}
+
+pub(crate) unsafe fn update_visual_skin_pane(
+    pane: *mut Pane,
+    element: &SkinElement,
+    state: &ControllerViewState,
+) {
     let value = state.control_value(element.control_id);
     let visible = if value.pressed {
         element.pressed_visible

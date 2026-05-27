@@ -72,12 +72,14 @@ python -m sarc create \
 This creates:
 
 - `local-assets/modified/info_melee/unpacked/blyt/info_melee.bflyt`
+- `local-assets/modified/info_melee/unpacked/blyt/info_melee_lct_player_00.bflyt`
+- `local-assets/modified/info_melee/unpacked/blyt/info_melee_lct_player_01.bflyt`
 - `local-assets/modified/info_melee/layout.arc`
 
-The current edit inserts a root-level SGPO pane tree:
+The current edit inserts SGPO pane trees into the root match layout and the two player-parts layouts:
 
 ```text
-RootPane
+info_melee.bflyt / info_melee_lct_player_00.bflyt / info_melee_lct_player_01.bflyt
   sgpo_root
     sgpo_pro_lt
     sgpo_pro_lb
@@ -109,19 +111,35 @@ Notes:
 
 1. `sgpo_pro_a_marker` keeps the previously tested A-button name.
 2. The other panes use short names because BFLYT pane names are limited.
-3. All visual children are cloned `Picture` panes from `set_rep_stock_01`.
-4. No BFLAN animations are added.
-5. No names referenced by existing BFLANs are reused.
+3. Root visual children are cloned `Picture` panes from `set_rep_stock_01`.
+4. Player-parts visual children are cloned `Picture` panes from `set_rep_01`, but their material/vertex-color fields are copied from `set_rep_stock_01`. This keeps the player-HUD pause visibility behavior from `set_rep_01` while avoiding the red P1 marker material.
+5. Injected panes start hidden with alpha `0`. Runtime code makes the active copy visible and updates alpha/position.
+6. No BFLAN animations are added.
+7. No names referenced by existing BFLANs are reused.
+
+The root copy supports the normal `Layout::Draw` renderer. The player-parts copies support the Training Modpack compatibility renderer, which captures P1's HUD parts layout instead of hooking `Layout::Draw`.
+
+The default build does not include the NRO-embedded layout hook. Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement for:
+
+```text
+ui/layout/info/info_melee/info_melee/layout.arc
+```
+
+Do not commit or publish this generated layout file.
+
+The old embedded layout hook can be built with `SMASH_GAMEPAD_OVERLAY_EMBED_LAYOUT=1`, but do not use that build with Training Modpack.
 
 This gives the Rust plugin real Smash UI panes to find and update:
 
 The Rust renderer:
 
 - Searches `info_melee` for `sgpo_root`.
+- Or, in Training Modpack compatibility mode, captures P1's HUD parts layout and searches that layout data for `sgpo_root`.
 - Iterates the built-in `SkinElement` table.
 - Sets each pane visible.
 - Updates alpha, scale, and position from `ControllerViewState`.
-- Leaves DebugText fallback intact if the pane is missing.
+- Leaves DebugText fallback intact on the normal `Layout::Draw` path if visual panes are missing.
+- On the Training Modpack path, missing visual panes are logged and the overlay stays inactive, because SGPO intentionally does not install the draw hook needed by the text fallback.
 
 ## Later Visual HUD Expansion
 

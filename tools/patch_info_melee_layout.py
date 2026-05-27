@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Add SGPO Pro Controller visual panes to an unpacked info_melee layout.
 
-This patches only `blyt/info_melee.bflyt`. It does not repack the SARC; use the
-Python `sarc` package after running this script.
+This patches the root match HUD and the P1 player-parts layouts. It does not
+repack the SARC; use the Python `sarc` package after running this script.
 """
 
 from __future__ import annotations
@@ -17,6 +17,20 @@ ROOT_PANE_NAME = "sgpo_root"
 
 SGPO_ROOT_POS = (760.0, -330.0, 0.0)
 SGPO_ROOT_SIZE = (360.0, 300.0)
+INITIAL_PANE_ALPHA = 0
+
+ROOT_BFLYT = "info_melee.bflyt"
+ROOT_MARKER_SOURCE_NAME = "set_rep_stock_01"
+ROOT_MARKER_MATERIAL_SOURCE_NAME = None
+PLAYER_PARTS_BFLYTS = [
+    "info_melee_lct_player_00.bflyt",
+    "info_melee_lct_player_01.bflyt",
+]
+PLAYER_PARTS_MARKER_SOURCE_NAME = "set_rep_01"
+PLAYER_PARTS_MARKER_MATERIAL_SOURCE_NAME = "set_rep_stock_01"
+PIC_VERTEX_COLOR_OFFSET = 8 + 0x4C
+PIC_MATERIAL_INDEX_OFFSET = 8 + 0x5C
+PIC_TEXTURE_COORD_COUNT_OFFSET = 8 + 0x5E
 
 # Keep these names in sync with src/skin.rs. The A marker keeps its previously
 # tested name to avoid changing the known-good hardware path.
@@ -105,16 +119,30 @@ def set_pane_transform(
     write_f32(section, base + 0x48, size[1])
 
 
+def set_picture_material_from_source(section: bytearray, material_source: bytes | bytearray) -> None:
+    section[PIC_VERTEX_COLOR_OFFSET : PIC_VERTEX_COLOR_OFFSET + 16] = material_source[
+        PIC_VERTEX_COLOR_OFFSET : PIC_VERTEX_COLOR_OFFSET + 16
+    ]
+    section[PIC_MATERIAL_INDEX_OFFSET : PIC_MATERIAL_INDEX_OFFSET + 2] = material_source[
+        PIC_MATERIAL_INDEX_OFFSET : PIC_MATERIAL_INDEX_OFFSET + 2
+    ]
+    section[PIC_TEXTURE_COORD_COUNT_OFFSET] = material_source[PIC_TEXTURE_COORD_COUNT_OFFSET]
+
+
 def make_picture_pane(
     source: bytes | bytearray,
+    material_source: bytes | bytearray | None,
     name: str,
     pos: tuple[float, float, float],
     size: tuple[float, float],
+    alpha: int,
 ) -> bytearray:
     pane = bytearray(source)
     set_pane_name(pane, name)
-    set_pane_alpha(pane, 255)
+    set_pane_alpha(pane, alpha)
     set_pane_transform(pane, pos, size)
+    if material_source is not None:
+        set_picture_material_from_source(pane, material_source)
     return pane
 
 
@@ -157,7 +185,9 @@ def find_root_close_offset(data: bytes | bytearray) -> int:
     raise ValueError(f"could not find RootPane close; last pae1={last_root_child_close}")
 
 
-def patch_bflyt(path: Path) -> None:
+def patch_bflyt(
+    path: Path, marker_source_name: str, marker_material_source_name: str | None
+) -> None:
     data = bytearray(path.read_bytes())
     if data[:4] != b"FLYT":
         raise ValueError(f"not a BFLYT file: {path}")
@@ -178,19 +208,27 @@ def patch_bflyt(path: Path) -> None:
         )
 
     root_offset, root_size = find_section_by_pane_name(data, b"pan1", "RootPane")
-    stock_offset, stock_size = find_section_by_pane_name(data, b"pic1", "set_rep_stock_01")
+    marker_offset, marker_size = find_section_by_pane_name(
+        data, b"pic1", marker_source_name
+    )
+    material_source = None
+    if marker_material_source_name is not None:
+        material_offset, material_size = find_section_by_pane_name(
+            data, b"pic1", marker_material_source_name
+        )
+        material_source = data[material_offset : material_offset + material_size]
 
     sgpo_root = bytearray(data[root_offset : root_offset + root_size])
     set_pane_name(sgpo_root, ROOT_PANE_NAME)
-    set_pane_alpha(sgpo_root, 255)
+    set_pane_alpha(sgpo_root, INITIAL_PANE_ALPHA)
     set_pane_transform(sgpo_root, SGPO_ROOT_POS, SGPO_ROOT_SIZE)
 
-    marker_source = data[stock_offset : stock_offset + stock_size]
+    marker_source = data[marker_offset : marker_offset + marker_size]
 
     pas1 = b"pas1" + struct.pack("<I", 8)
     pae1 = b"pae1" + struct.pack("<I", 8)
     markers = b"".join(
-        make_picture_pane(marker_source, name, pos, size)
+        make_picture_pane(marker_source, material_source, name, pos, size, INITIAL_PANE_ALPHA)
         for name, pos, size in PANE_SPECS
     )
     inserted = sgpo_root + pas1 + markers + pae1
@@ -228,7 +266,14 @@ def main() -> None:
         shutil.rmtree(args.dest)
     shutil.copytree(args.source, args.dest)
 
-    patch_bflyt(args.dest / "blyt" / "info_melee.bflyt")
+    blyt_dir = args.dest / "blyt"
+    patch_bflyt(blyt_dir / ROOT_BFLYT, ROOT_MARKER_SOURCE_NAME, ROOT_MARKER_MATERIAL_SOURCE_NAME)
+    for bflyt_name in PLAYER_PARTS_BFLYTS:
+        patch_bflyt(
+            blyt_dir / bflyt_name,
+            PLAYER_PARTS_MARKER_SOURCE_NAME,
+            PLAYER_PARTS_MARKER_MATERIAL_SOURCE_NAME,
+        )
 
 
 if __name__ == "__main__":

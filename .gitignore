@@ -10,6 +10,9 @@
 # Runtime/debug logs
 /smash-gamepad-overlay.log
 
+# Local deployment paths/secrets
+/.env
+
 # Local game dumps and extracted binary assets
 /data.arc
 /local-assets/
