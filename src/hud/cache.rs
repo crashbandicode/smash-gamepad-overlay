@@ -44,8 +44,28 @@ struct HudVisualRuntime {
 
 struct HudVisualRuntimeCell(UnsafeCell<HudVisualRuntime>);
 
-// These hooks run on Smash's UI path; the cache is intentionally single-threaded.
 unsafe impl Sync for HudVisualRuntimeCell {}
+
+struct HudRuntimeGuard;
+
+impl HudRuntimeGuard {
+    fn acquire() -> Self {
+        while HUD_RUNTIME_LOCK
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            std::hint::spin_loop();
+        }
+
+        Self
+    }
+}
+
+impl Drop for HudRuntimeGuard {
+    fn drop(&mut self) {
+        HUD_RUNTIME_LOCK.store(false, Ordering::Release);
+    }
+}
 
 impl HudVisualRuntime {
     const fn new() -> Self {
@@ -232,6 +252,7 @@ static HUD_CAPTURE_MISS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_LAYOUT_PATCH_PROBE_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_CACHE_FULL_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_CAPTURED: AtomicBool = AtomicBool::new(false);
+static HUD_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static HUD_VISUAL_RUNTIME: HudVisualRuntimeCell =
     HudVisualRuntimeCell(UnsafeCell::new(HudVisualRuntime::new()));
 
@@ -240,6 +261,7 @@ pub(super) fn runtime_has_capture() -> bool {
 }
 
 pub(super) fn reset_runtime() {
+    let _guard = HudRuntimeGuard::acquire();
     HUD_CAPTURED.store(false, Ordering::Relaxed);
     unsafe {
         (*HUD_VISUAL_RUNTIME.0.get()).reset();
@@ -247,10 +269,12 @@ pub(super) fn reset_runtime() {
 }
 
 pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout, training_mode: bool) {
+    let _guard = HudRuntimeGuard::acquire();
     (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, &ACTIVE_SKIN, training_mode);
 }
 
 pub(super) unsafe fn update_runtime(state: &ControllerViewState, training_mode: bool) -> bool {
+    let _guard = HudRuntimeGuard::acquire();
     (*HUD_VISUAL_RUNTIME.0.get()).update(state, training_mode)
 }
 
@@ -292,6 +316,20 @@ fn log_capture_miss(error: VisualRenderError) {
             "non-draw HUD path could not find skin '{skin_name}' pane '{}'",
             cstr_bytes_to_str(pane_name)
         )),
+    }
+
+    match error {
+        VisualRenderError::MissingSkinPane { pane_name, .. } => {
+            trace(&format!(
+                "skin/layout mismatch: active skin '{}' missing first pane '{}'; expected layout flavor: {}",
+                ACTIVE_SKIN.name,
+                cstr_bytes_to_str(pane_name),
+                ACTIVE_SKIN.expected_layout_flavor
+            ));
+            trace(
+                "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
+            );
+        }
     }
 }
 

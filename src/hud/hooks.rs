@@ -78,6 +78,10 @@ unsafe fn reset_match_hud_capture_on_end(_: &InlineCtx) {
 
 pub(crate) fn install_non_draw_hud_hooks() {
     let version = display_version();
+    trace(&format!(
+        "non-draw HUD hooks enabled only for display version {SUPPORTED_NON_DRAW_DISPLAY_VERSION}"
+    ));
+
     if version != SUPPORTED_NON_DRAW_DISPLAY_VERSION {
         trace(&format!(
             "non-draw HUD hooks not installed for Smash display version {version}; supported version is {SUPPORTED_NON_DRAW_DISPLAY_VERSION}"
