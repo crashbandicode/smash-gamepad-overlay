@@ -30,9 +30,11 @@ use crate::offsets::{
 };
 use crate::skin::{built_in_asset_metadata_count, built_in_skin_count, ACTIVE_SKIN};
 use crate::ui::{draw_overlay, layout_name_is};
+use crate::visual::install_draw_path_visual_reset_hooks;
 
 static DRAW_HOOK_LOGGED: AtomicBool = AtomicBool::new(false);
 static MATCH_HUD_LAYOUT_LOGGED: AtomicBool = AtomicBool::new(false);
+const SUPPORTED_DRAW_PATH_DISPLAY_VERSION: &str = "13.0.4";
 
 #[skyline::hook(offset = draw_hook_offset_for_install())]
 unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u64) {
@@ -74,7 +76,8 @@ pub fn main() {
             "disabled"
         }
     ));
-    trace(&format!("Smash display version {}", display_version()));
+    let smash_display_version = display_version();
+    trace(&format!("Smash display version {smash_display_version}"));
     trace(&format!(
         "registered {} logical controls",
         logical_control_count()
@@ -111,6 +114,15 @@ pub fn main() {
 
     #[cfg(not(sgpo_embed_layout))]
     trace("embedded layout injection disabled; install patched info_melee layout as a normal data replacement");
+
+    if smash_display_version != SUPPORTED_DRAW_PATH_DISPLAY_VERSION {
+        trace(&format!(
+            "draw path not installed for Smash display version {smash_display_version}; ui2d helper offsets are currently supported only for {SUPPORTED_DRAW_PATH_DISPLAY_VERSION}"
+        ));
+        return;
+    }
+
+    install_draw_path_visual_reset_hooks();
 
     match *OFFSET_DRAW {
         Some(offset) => {

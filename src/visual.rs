@@ -1,14 +1,17 @@
+use skyline::hooks::InlineCtx;
 use skyline::nn::ui2d::{Layout, Pane, PaneFlag};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::config::{OverlayConfig, OVERLAY_CONFIG};
+use crate::config::{OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
+use crate::offsets::display_version;
 use crate::skin::{BuiltInSkin, SkinElement, ACTIVE_SKIN};
 use crate::ui::find_pane_by_name;
 
 pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
+const SUPPORTED_DRAW_RESET_DISPLAY_VERSION: &str = "13.0.4";
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum VisualRenderError {
@@ -46,8 +49,28 @@ struct VisualRuntime {
 
 struct VisualRuntimeCell(UnsafeCell<VisualRuntime>);
 
-// The draw hook touches this cache from Smash's UI draw path only.
 unsafe impl Sync for VisualRuntimeCell {}
+
+struct VisualRuntimeGuard;
+
+impl VisualRuntimeGuard {
+    fn acquire() -> Self {
+        while VISUAL_RUNTIME_LOCK
+            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .is_err()
+        {
+            std::hint::spin_loop();
+        }
+
+        Self
+    }
+}
+
+impl Drop for VisualRuntimeGuard {
+    fn drop(&mut self) {
+        VISUAL_RUNTIME_LOCK.store(false, Ordering::Release);
+    }
+}
 
 impl VisualRuntime {
     const fn new() -> Self {
@@ -63,23 +86,29 @@ impl VisualRuntime {
         skin: &'static BuiltInSkin,
         state: &ControllerViewState,
     ) -> Result<(), VisualRenderError> {
-        if !self.cache_matches(layout, layout_root, skin) {
-            self.cache = VisualCache::Empty;
-        }
-
         match self.cache {
-            VisualCache::Resolved(mut resolved) => {
-                if !resolved.is_valid_for(layout, layout_root, skin) {
-                    self.cache = VisualCache::Empty;
-                    return self.resolve_and_render(layout, layout_root, skin, state);
-                }
-
+            VisualCache::Resolved(mut resolved)
+                if resolved.is_valid_for(layout, layout_root, skin) =>
+            {
                 update_resolved_skin(&mut resolved, skin, state);
                 self.cache = VisualCache::Resolved(resolved);
                 Ok(())
             }
-            VisualCache::Missing { error, .. } => Err(error),
-            VisualCache::Empty => self.resolve_and_render(layout, layout_root, skin, state),
+            VisualCache::Missing {
+                layout: cached_layout,
+                layout_root: cached_layout_root,
+                skin_name,
+                error,
+            } if cached_layout == layout
+                && cached_layout_root == layout_root
+                && skin_name == skin.name =>
+            {
+                Err(error)
+            }
+            _ => {
+                self.cache = VisualCache::Empty;
+                self.resolve_and_render(layout, layout_root, skin, state)
+            }
         }
     }
 
@@ -113,26 +142,8 @@ impl VisualRuntime {
         }
     }
 
-    fn cache_matches(
-        &self,
-        layout: *mut Layout,
-        layout_root: *mut Pane,
-        skin: &BuiltInSkin,
-    ) -> bool {
-        match self.cache {
-            VisualCache::Empty => false,
-            VisualCache::Resolved(resolved) => resolved.is_for(layout, layout_root, skin),
-            VisualCache::Missing {
-                layout: cached_layout,
-                layout_root: cached_layout_root,
-                skin_name,
-                ..
-            } => {
-                cached_layout == layout
-                    && cached_layout_root == layout_root
-                    && skin_name == skin.name
-            }
-        }
+    fn reset(&mut self) {
+        self.cache = VisualCache::Empty;
     }
 }
 
@@ -178,6 +189,8 @@ impl ResolvedSkin {
 }
 
 static VISUAL_PANES_LOGGED: AtomicBool = AtomicBool::new(false);
+static VISUAL_RESET_HOOKS_LOGGED: AtomicBool = AtomicBool::new(false);
+static VISUAL_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static VISUAL_RUNTIME: VisualRuntimeCell = VisualRuntimeCell(UnsafeCell::new(VisualRuntime::new()));
 
 pub(crate) unsafe fn render_visual_overlay(
@@ -188,7 +201,50 @@ pub(crate) unsafe fn render_visual_overlay(
     let view_state = snapshot
         .map(ControllerViewState::from_snapshot)
         .unwrap_or_else(ControllerViewState::neutral);
+    let _guard = VisualRuntimeGuard::acquire();
     (*VISUAL_RUNTIME.0.get()).render(layout, root_pane, &ACTIVE_SKIN, &view_state)
+}
+
+pub(crate) fn install_draw_path_visual_reset_hooks() {
+    let version = display_version();
+    trace(&format!(
+        "draw-path visual reset hooks enabled only for display version {SUPPORTED_DRAW_RESET_DISPLAY_VERSION}"
+    ));
+
+    if version != SUPPORTED_DRAW_RESET_DISPLAY_VERSION {
+        trace(&format!(
+            "draw-path visual reset hooks not installed for Smash display version {version}; supported version is {SUPPORTED_DRAW_RESET_DISPLAY_VERSION}"
+        ));
+        return;
+    }
+
+    if !VISUAL_RESET_HOOKS_LOGGED.swap(true, Ordering::Relaxed) {
+        trace(&format!(
+            "installing draw-path visual reset hooks at .text+0x{HUD_MATCH_START_OFFSET:x}/0x{HUD_MATCH_END_OFFSET:x}"
+        ));
+    }
+
+    skyline::install_hooks!(
+        reset_visual_runtime_on_match_start,
+        reset_visual_runtime_on_match_end
+    );
+}
+
+#[skyline::hook(offset = HUD_MATCH_START_OFFSET, inline)]
+unsafe fn reset_visual_runtime_on_match_start(_: &InlineCtx) {
+    reset_visual_runtime();
+}
+
+#[skyline::hook(offset = HUD_MATCH_END_OFFSET, inline)]
+unsafe fn reset_visual_runtime_on_match_end(_: &InlineCtx) {
+    reset_visual_runtime();
+}
+
+fn reset_visual_runtime() {
+    let _guard = VisualRuntimeGuard::acquire();
+    unsafe {
+        (*VISUAL_RUNTIME.0.get()).reset();
+    }
 }
 
 unsafe fn resolve_skin(

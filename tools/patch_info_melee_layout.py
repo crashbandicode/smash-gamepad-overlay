@@ -28,6 +28,7 @@ PLAYER_PARTS_BFLYTS = [
 ]
 PLAYER_PARTS_MARKER_SOURCE_NAME = "set_rep_01"
 PLAYER_PARTS_MARKER_MATERIAL_SOURCE_NAME = "set_rep_stock_01"
+PANE_SECTION_TAGS = {b"pan1", b"pic1", b"txt1", b"prt1", b"wnd1", b"bnd1"}
 # FLYT pic1 vertex color array: section header (8) + picture payload offset 0x4C.
 PIC_VERTEX_COLOR_OFFSET = 8 + 0x4C
 # FLYT pic1 material index: section header (8) + picture payload offset 0x5C.
@@ -175,7 +176,7 @@ def find_root_close_offset(data: bytes | bytearray) -> int:
     depth = 0
     last_root_child_close = None
     for offset, tag, _size in iter_sections(data):
-        if tag in {b"pan1", b"pic1", b"txt1", b"prt1", b"wnd1", b"bnd1"}:
+        if tag in PANE_SECTION_TAGS:
             continue
         if tag == b"pas1":
             depth += 1
@@ -186,6 +187,91 @@ def find_root_close_offset(data: bytes | bytearray) -> int:
             last_root_child_close = offset
 
     raise ValueError(f"could not find RootPane close; last pae1={last_root_child_close}")
+
+
+def validate_section(
+    data: bytes | bytearray, offset: int, size: int, tag: bytes, path: Path, name: str
+) -> None:
+    actual_tag = bytes(data[offset : offset + 4])
+    if actual_tag != tag:
+        raise ValueError(
+            f"{path}: expected {tag.decode()} section for {name}, found {actual_tag!r}"
+        )
+    if size < 8:
+        raise ValueError(f"{path}: {tag.decode()} section for {name} is too small")
+
+
+def validate_pic1_section(
+    data: bytes | bytearray, offset: int, size: int, path: Path, name: str
+) -> None:
+    validate_section(data, offset, size, b"pic1", path, name)
+
+    required_offsets = [
+        ("vertex colors", PIC_VERTEX_COLOR_OFFSET + 16),
+        ("material index", PIC_MATERIAL_INDEX_OFFSET + 2),
+        ("texture coordinate count", PIC_TEXTURE_COORD_COUNT_OFFSET + 1),
+    ]
+    for field_name, end_offset in required_offsets:
+        if end_offset > size:
+            raise ValueError(
+                f"{path}: pic1 section for {name} is too small for {field_name}; "
+                f"need 0x{end_offset:x}, got 0x{size:x}"
+            )
+
+
+def validate_bflyt_for_patch(
+    path: Path, marker_source_name: str, marker_material_source_name: str | None
+) -> None:
+    data = path.read_bytes()
+    if data[:4] != b"FLYT":
+        raise ValueError(f"not a BFLYT file: {path}")
+    if file_size(data) != len(data):
+        raise ValueError(f"BFLYT header size does not match file length for {path}")
+
+    discovered_sections = sum(1 for _ in iter_sections(data))
+    if discovered_sections != section_count(data):
+        raise ValueError(
+            f"{path}: header says {section_count(data)} sections, "
+            f"but section walk found {discovered_sections}"
+        )
+
+    root_offset, root_size = find_section_by_pane_name(data, b"pan1", "RootPane")
+    validate_section(data, root_offset, root_size, b"pan1", path, "RootPane")
+
+    marker_offset, marker_size = find_section_by_pane_name(
+        data, b"pic1", marker_source_name
+    )
+    validate_pic1_section(data, marker_offset, marker_size, path, marker_source_name)
+
+    if marker_material_source_name is not None:
+        material_offset, material_size = find_section_by_pane_name(
+            data, b"pic1", marker_material_source_name
+        )
+        validate_pic1_section(
+            data, material_offset, material_size, path, marker_material_source_name
+        )
+
+    root_close_offset = find_root_close_offset(data)
+    if data[root_close_offset : root_close_offset + 4] != b"pae1":
+        raise ValueError(f"{path}: RootPane close offset did not resolve to a pae1 section")
+
+
+def run_self_test(source: Path) -> None:
+    blyt_dir = source / "blyt"
+    test_specs = [
+        (ROOT_BFLYT, ROOT_MARKER_SOURCE_NAME, ROOT_MARKER_MATERIAL_SOURCE_NAME),
+        *(
+            (bflyt_name, PLAYER_PARTS_MARKER_SOURCE_NAME, PLAYER_PARTS_MARKER_MATERIAL_SOURCE_NAME)
+            for bflyt_name in PLAYER_PARTS_BFLYTS
+        ),
+    ]
+
+    for bflyt_name, marker_source_name, marker_material_source_name in test_specs:
+        validate_bflyt_for_patch(
+            blyt_dir / bflyt_name, marker_source_name, marker_material_source_name
+        )
+
+    print(f"patcher self-test passed for {source}")
 
 
 def patch_bflyt(
@@ -214,10 +300,14 @@ def patch_bflyt(
     marker_offset, marker_size = find_section_by_pane_name(
         data, b"pic1", marker_source_name
     )
+    validate_pic1_section(data, marker_offset, marker_size, path, marker_source_name)
     material_source = None
     if marker_material_source_name is not None:
         material_offset, material_size = find_section_by_pane_name(
             data, b"pic1", marker_material_source_name
+        )
+        validate_pic1_section(
+            data, material_offset, material_size, path, marker_material_source_name
         )
         material_source = data[material_offset : material_offset + material_size]
 
@@ -263,7 +353,16 @@ def main() -> None:
         default=Path("local-assets/modified/info_melee/unpacked"),
         help="destination unpacked layout directory to create",
     )
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="validate BFLYT/pic1 assumptions against --source and exit",
+    )
     args = parser.parse_args()
+
+    if args.self_test:
+        run_self_test(args.source)
+        return
 
     if args.dest.exists():
         shutil.rmtree(args.dest)

@@ -10,7 +10,9 @@ pub(crate) struct StickMovementRange {
 pub(crate) struct SkinElement {
     pub control_id: ControlId,
     pub pane_name: &'static [u8],
+    /// Source image name consumed by the future PC-side converter; ignored by the runtime plugin.
     pub image_name: Option<&'static str>,
+    /// Generated/source material name consumed by the future PC-side converter; ignored by the runtime plugin.
     pub material_name: Option<&'static str>,
     pub base_x: f32,
     pub base_y: f32,
@@ -196,7 +198,9 @@ const MINIMAL_DEBUG_ELEMENTS: [SkinElement; 24] = [
     ),
 ];
 
-// Coordinates mirror RetroSpy's switch-pro-alt skin.xml against its 1280x965 background.
+// Coordinates mirror RetroSpy's switch-pro-alt skin.xml against its 1280x965
+// background. The future converter must translate these into Smash layout
+// coordinates before this skin becomes an active runtime target.
 const SWITCH_PRO_ALT_ELEMENTS: [SkinElement; 20] = [
     image_button(
         ControlId::B,
