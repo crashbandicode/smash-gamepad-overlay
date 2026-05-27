@@ -59,7 +59,7 @@ pub(crate) const OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
 
 pub(crate) const TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
-    x: 240.0,
+    x: 315.0,
     y: -30.0,
     scale: 0.55,
     opacity: 255,
@@ -67,7 +67,7 @@ pub(crate) const TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = Overla
 
 pub(crate) const TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
-    x: 85.0,
+    x: 160.0,
     y: -80.0,
     scale: 0.5,
     opacity: 255,

@@ -61,8 +61,8 @@ pub fn main() {
     trace("starting P1 input overlay");
     trace(&format!("build {}", build_info::BUILD_ID));
     trace(&format!(
-        "change {} local build {}",
-        build_info::CHANGE_NUMBER,
+        "git change count {} local build {}",
+        build_info::GIT_CHANGE_COUNT,
         build_info::LOCAL_BUILD_NUMBER
     ));
     trace(&format!(
