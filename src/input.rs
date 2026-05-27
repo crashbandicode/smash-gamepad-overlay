@@ -51,6 +51,8 @@ pub(crate) enum ControlId {
     R3,
     Plus,
     Minus,
+    Home,
+    Capture,
     DpadUp,
     DpadDown,
     DpadLeft,
@@ -68,7 +70,7 @@ pub(crate) enum ControlId {
 }
 
 impl ControlId {
-    const ALL: [Self; 26] = [
+    const ALL: [Self; 28] = [
         Self::A,
         Self::B,
         Self::X,
@@ -81,6 +83,8 @@ impl ControlId {
         Self::R3,
         Self::Plus,
         Self::Minus,
+        Self::Home,
+        Self::Capture,
         Self::DpadUp,
         Self::DpadDown,
         Self::DpadLeft,
@@ -157,6 +161,11 @@ impl ControllerViewState {
             ControlId::R3 => self.button_value(BUTTON_RSTICK),
             ControlId::Plus => self.button_value(BUTTON_PLUS),
             ControlId::Minus => self.button_value(BUTTON_MINUS),
+            // Home/Capture are represented in some skins but are not exposed as match input.
+            ControlId::Home | ControlId::Capture => ControlValue {
+                pressed: false,
+                analog: 0.0,
+            },
             ControlId::DpadUp => self.button_value(BUTTON_DUP),
             ControlId::DpadDown => self.button_value(BUTTON_DDOWN),
             ControlId::DpadLeft => self.button_value(BUTTON_DLEFT),

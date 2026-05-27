@@ -1,9 +1,17 @@
 use crate::input::ControlId;
 
 #[derive(Debug, Copy, Clone)]
+pub(crate) struct StickMovementRange {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Copy, Clone)]
 pub(crate) struct SkinElement {
     pub control_id: ControlId,
     pub pane_name: &'static [u8],
+    pub image_name: Option<&'static str>,
+    pub material_name: Option<&'static str>,
     pub base_x: f32,
     pub base_y: f32,
     pub size_x: f32,
@@ -14,7 +22,7 @@ pub(crate) struct SkinElement {
     pub pressed_scale: f32,
     pub released_visible: bool,
     pub pressed_visible: bool,
-    pub stick_movement_radius: Option<f32>,
+    pub stick_movement: Option<StickMovementRange>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -24,18 +32,40 @@ pub(crate) struct BuiltInSkin {
     pub elements: &'static [SkinElement],
 }
 
-pub(crate) const PRO_CONTROLLER_STATIC_SKIN: BuiltInSkin = BuiltInSkin {
-    name: "minimal_pro_controller_full",
+pub(crate) const ACTIVE_SKIN: BuiltInSkin = MINIMAL_DEBUG_SKIN;
+
+const BUILT_IN_SKINS: [BuiltInSkin; 2] = [MINIMAL_DEBUG_SKIN, SWITCH_PRO_ALT_BUILTIN_SKIN];
+
+pub(crate) fn built_in_skin_count() -> usize {
+    BUILT_IN_SKINS.len()
+}
+
+pub(crate) fn built_in_asset_metadata_count() -> usize {
+    BUILT_IN_SKINS
+        .iter()
+        .flat_map(|skin| skin.elements.iter())
+        .filter(|element| element.image_name.is_some() || element.material_name.is_some())
+        .count()
+}
+
+pub(crate) const MINIMAL_DEBUG_SKIN: BuiltInSkin = BuiltInSkin {
+    name: "minimal_debug",
     root_pane_name: b"sgpo_root\0",
-    elements: &PRO_CONTROLLER_STATIC_ELEMENTS,
+    elements: &MINIMAL_DEBUG_ELEMENTS,
 };
 
-const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
-    button(ControlId::ZL, b"sgpo_pro_lt\0", -145.0, 122.0, 54.0, 20.0),
-    button(ControlId::L, b"sgpo_pro_lb\0", -145.0, 95.0, 54.0, 20.0),
-    button(ControlId::ZR, b"sgpo_pro_rt\0", 65.0, 122.0, 54.0, 20.0),
-    button(ControlId::R, b"sgpo_pro_rb\0", 65.0, 95.0, 54.0, 20.0),
-    button(
+pub(crate) const SWITCH_PRO_ALT_BUILTIN_SKIN: BuiltInSkin = BuiltInSkin {
+    name: "switch_pro_alt_builtin",
+    root_pane_name: b"sgpo_root\0",
+    elements: &SWITCH_PRO_ALT_ELEMENTS,
+};
+
+const MINIMAL_DEBUG_ELEMENTS: [SkinElement; 24] = [
+    minimal_button(ControlId::ZL, b"sgpo_pro_lt\0", -145.0, 122.0, 54.0, 20.0),
+    minimal_button(ControlId::L, b"sgpo_pro_lb\0", -145.0, 95.0, 54.0, 20.0),
+    minimal_button(ControlId::ZR, b"sgpo_pro_rt\0", 65.0, 122.0, 54.0, 20.0),
+    minimal_button(ControlId::R, b"sgpo_pro_rb\0", 65.0, 95.0, 54.0, 20.0),
+    minimal_button(
         ControlId::Minus,
         b"sgpo_pro_minus\0",
         -38.0,
@@ -43,10 +73,10 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         20.0,
         20.0,
     ),
-    button(ControlId::Plus, b"sgpo_pro_plus\0", 20.0, 45.0, 20.0, 20.0),
-    button(ControlId::L3, b"sgpo_pro_l3\0", -68.0, -30.0, 18.0, 18.0),
-    button(ControlId::R3, b"sgpo_pro_r3\0", 62.0, -100.0, 18.0, 18.0),
-    static_marker(
+    minimal_button(ControlId::Plus, b"sgpo_pro_plus\0", 20.0, 45.0, 20.0, 20.0),
+    minimal_button(ControlId::L3, b"sgpo_pro_l3\0", -68.0, -30.0, 18.0, 18.0),
+    minimal_button(ControlId::R3, b"sgpo_pro_r3\0", 62.0, -100.0, 18.0, 18.0),
+    minimal_static_marker(
         ControlId::LeftStickGate,
         b"sgpo_pro_ls_gate\0",
         -105.0,
@@ -55,7 +85,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         58.0,
         60,
     ),
-    stick_dot(
+    minimal_stick_dot(
         ControlId::LeftStickDot,
         b"sgpo_pro_ls_dot\0",
         -105.0,
@@ -63,8 +93,9 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         14.0,
         14.0,
         22.0,
+        22.0,
     ),
-    static_marker(
+    minimal_static_marker(
         ControlId::RightStickGate,
         b"sgpo_pro_rs_gate\0",
         30.0,
@@ -73,7 +104,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         58.0,
         60,
     ),
-    stick_dot(
+    minimal_stick_dot(
         ControlId::RightStickDot,
         b"sgpo_pro_rs_dot\0",
         30.0,
@@ -81,8 +112,9 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         14.0,
         14.0,
         22.0,
+        22.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadUp,
         b"sgpo_pro_du\0",
         -105.0,
@@ -90,7 +122,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         16.0,
         16.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadDown,
         b"sgpo_pro_dd\0",
         -105.0,
@@ -98,7 +130,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         16.0,
         16.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadLeft,
         b"sgpo_pro_dl\0",
         -130.0,
@@ -106,7 +138,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         16.0,
         16.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadRight,
         b"sgpo_pro_dr\0",
         -80.0,
@@ -114,7 +146,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         16.0,
         16.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadUpLeft,
         b"sgpo_pro_dul\0",
         -130.0,
@@ -122,7 +154,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         13.0,
         13.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadUpRight,
         b"sgpo_pro_dur\0",
         -80.0,
@@ -130,7 +162,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         13.0,
         13.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadDownLeft,
         b"sgpo_pro_ddl\0",
         -130.0,
@@ -138,7 +170,7 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         13.0,
         13.0,
     ),
-    button(
+    minimal_button(
         ControlId::DpadDownRight,
         b"sgpo_pro_ddr\0",
         -80.0,
@@ -146,10 +178,10 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
         13.0,
         13.0,
     ),
-    button(ControlId::Y, b"sgpo_pro_btn_y\0", 15.0, -20.0, 24.0, 24.0),
-    button(ControlId::X, b"sgpo_pro_btn_x\0", 45.0, 10.0, 24.0, 24.0),
-    button(ControlId::B, b"sgpo_pro_btn_b\0", 45.0, -50.0, 24.0, 24.0),
-    button(
+    minimal_button(ControlId::Y, b"sgpo_pro_btn_y\0", 15.0, -20.0, 24.0, 24.0),
+    minimal_button(ControlId::X, b"sgpo_pro_btn_x\0", 45.0, 10.0, 24.0, 24.0),
+    minimal_button(ControlId::B, b"sgpo_pro_btn_b\0", 45.0, -50.0, 24.0, 24.0),
+    minimal_button(
         ControlId::A,
         b"sgpo_pro_a_marker\0",
         75.0,
@@ -159,7 +191,195 @@ const PRO_CONTROLLER_STATIC_ELEMENTS: [SkinElement; 24] = [
     ),
 ];
 
-const fn button(
+// Coordinates mirror RetroSpy's switch-pro-alt skin.xml against its 1280x965 background.
+const SWITCH_PRO_ALT_ELEMENTS: [SkinElement; 20] = [
+    image_button(
+        ControlId::B,
+        b"sgpo_alt_face_b\0",
+        "face_B.png",
+        333.0,
+        52.0,
+        100.0,
+        99.0,
+    ),
+    image_button(
+        ControlId::A,
+        b"sgpo_alt_face_a\0",
+        "face_A.png",
+        431.5,
+        137.5,
+        99.0,
+        100.0,
+    ),
+    image_button(
+        ControlId::X,
+        b"sgpo_alt_face_x\0",
+        "face_X.png",
+        332.5,
+        222.5,
+        99.0,
+        100.0,
+    ),
+    image_button(
+        ControlId::Y,
+        b"sgpo_alt_face_y\0",
+        "face_Y.png",
+        235.0,
+        137.5,
+        100.0,
+        100.0,
+    ),
+    image_button(
+        ControlId::Plus,
+        b"sgpo_alt_plus\0",
+        "center_Plus.png",
+        155.5,
+        232.5,
+        61.0,
+        62.0,
+    ),
+    image_button(
+        ControlId::Minus,
+        b"sgpo_alt_minus\0",
+        "center_Minus.png",
+        -155.5,
+        232.5,
+        61.0,
+        62.0,
+    ),
+    image_button(
+        ControlId::ZL,
+        b"sgpo_alt_zl\0",
+        "trigger_ZL.png",
+        -364.5,
+        408.0,
+        227.0,
+        133.0,
+    ),
+    image_button(
+        ControlId::ZR,
+        b"sgpo_alt_zr\0",
+        "trigger_ZR.png",
+        364.5,
+        408.0,
+        227.0,
+        133.0,
+    ),
+    image_button(
+        ControlId::L,
+        b"sgpo_alt_l\0",
+        "trigger_L.png",
+        -334.5,
+        347.0,
+        327.0,
+        113.0,
+    ),
+    image_button(
+        ControlId::R,
+        b"sgpo_alt_r\0",
+        "trigger_R.png",
+        335.5,
+        347.0,
+        327.0,
+        113.0,
+    ),
+    image_button(
+        ControlId::Home,
+        b"sgpo_alt_home\0",
+        "center_Home.png",
+        89.5,
+        137.0,
+        63.0,
+        63.0,
+    ),
+    image_button(
+        ControlId::Capture,
+        b"sgpo_alt_capture\0",
+        "center_Capture.png",
+        -89.0,
+        137.5,
+        58.0,
+        58.0,
+    ),
+    image_button(
+        ControlId::L3,
+        b"sgpo_alt_l3\0",
+        "stick_LS_Press.png",
+        -347.0,
+        137.5,
+        206.0,
+        204.0,
+    ),
+    image_button(
+        ControlId::R3,
+        b"sgpo_alt_r3\0",
+        "stick_RS_Press.png",
+        165.5,
+        -36.5,
+        205.0,
+        204.0,
+    ),
+    image_button(
+        ControlId::DpadUp,
+        b"sgpo_alt_dpad_up\0",
+        "dpad_Up.png",
+        -194.0,
+        11.0,
+        68.0,
+        97.0,
+    ),
+    image_button(
+        ControlId::DpadDown,
+        b"sgpo_alt_dpad_down\0",
+        "dpad_Down.png",
+        -194.0,
+        -83.0,
+        68.0,
+        97.0,
+    ),
+    image_button(
+        ControlId::DpadLeft,
+        b"sgpo_alt_dpad_left\0",
+        "dpad_Left.png",
+        -241.0,
+        -36.5,
+        98.0,
+        68.0,
+    ),
+    image_button(
+        ControlId::DpadRight,
+        b"sgpo_alt_dpad_right\0",
+        "dpad_Right.png",
+        -147.0,
+        -36.0,
+        98.0,
+        67.0,
+    ),
+    image_stick(
+        ControlId::LeftStickDot,
+        b"sgpo_alt_left_stick\0",
+        "stick_Left.png",
+        -347.0,
+        137.5,
+        164.0,
+        164.0,
+        41.0,
+        41.0,
+    ),
+    image_stick(
+        ControlId::RightStickDot,
+        b"sgpo_alt_right_stick\0",
+        "stick_Right.png",
+        165.0,
+        -36.5,
+        164.0,
+        164.0,
+        41.0,
+        41.0,
+    ),
+];
+
+const fn minimal_button(
     control_id: ControlId,
     pane_name: &'static [u8],
     base_x: f32,
@@ -170,6 +390,8 @@ const fn button(
     SkinElement {
         control_id,
         pane_name,
+        image_name: None,
+        material_name: None,
         base_x,
         base_y,
         size_x,
@@ -180,11 +402,11 @@ const fn button(
         pressed_scale: 1.22,
         released_visible: true,
         pressed_visible: true,
-        stick_movement_radius: None,
+        stick_movement: None,
     }
 }
 
-const fn static_marker(
+const fn minimal_static_marker(
     control_id: ControlId,
     pane_name: &'static [u8],
     base_x: f32,
@@ -196,6 +418,8 @@ const fn static_marker(
     SkinElement {
         control_id,
         pane_name,
+        image_name: None,
+        material_name: None,
         base_x,
         base_y,
         size_x,
@@ -206,22 +430,25 @@ const fn static_marker(
         pressed_scale: 1.0,
         released_visible: true,
         pressed_visible: true,
-        stick_movement_radius: None,
+        stick_movement: None,
     }
 }
 
-const fn stick_dot(
+const fn minimal_stick_dot(
     control_id: ControlId,
     pane_name: &'static [u8],
     base_x: f32,
     base_y: f32,
     size_x: f32,
     size_y: f32,
-    stick_movement_radius: f32,
+    movement_x: f32,
+    movement_y: f32,
 ) -> SkinElement {
     SkinElement {
         control_id,
         pane_name,
+        image_name: None,
+        material_name: None,
         base_x,
         base_y,
         size_x,
@@ -232,6 +459,70 @@ const fn stick_dot(
         pressed_scale: 1.0,
         released_visible: true,
         pressed_visible: true,
-        stick_movement_radius: Some(stick_movement_radius),
+        stick_movement: Some(StickMovementRange {
+            x: movement_x,
+            y: movement_y,
+        }),
+    }
+}
+
+const fn image_button(
+    control_id: ControlId,
+    pane_name: &'static [u8],
+    image_name: &'static str,
+    base_x: f32,
+    base_y: f32,
+    size_x: f32,
+    size_y: f32,
+) -> SkinElement {
+    SkinElement {
+        control_id,
+        pane_name,
+        image_name: Some(image_name),
+        material_name: None,
+        base_x,
+        base_y,
+        size_x,
+        size_y,
+        released_alpha: 70,
+        pressed_alpha: 255,
+        released_scale: 1.0,
+        pressed_scale: 1.05,
+        released_visible: true,
+        pressed_visible: true,
+        stick_movement: None,
+    }
+}
+
+const fn image_stick(
+    control_id: ControlId,
+    pane_name: &'static [u8],
+    image_name: &'static str,
+    base_x: f32,
+    base_y: f32,
+    size_x: f32,
+    size_y: f32,
+    movement_x: f32,
+    movement_y: f32,
+) -> SkinElement {
+    SkinElement {
+        control_id,
+        pane_name,
+        image_name: Some(image_name),
+        material_name: None,
+        base_x,
+        base_y,
+        size_x,
+        size_y,
+        released_alpha: 255,
+        pressed_alpha: 255,
+        released_scale: 1.0,
+        pressed_scale: 1.0,
+        released_visible: true,
+        pressed_visible: true,
+        stick_movement: Some(StickMovementRange {
+            x: movement_x,
+            y: movement_y,
+        }),
     }
 }

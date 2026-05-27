@@ -17,7 +17,8 @@ The first milestone is intentionally small:
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
 - The overlay has two display modes: `Visual` and `DebugText`.
-- `Visual` mode is configured by default and targets a minimal Switch Pro Controller pane skin under `sgpo_root`.
+- `Visual` mode is configured by default and targets the `minimal_debug` square pane skin under `sgpo_root`.
+- A second built-in skin definition, `switch_pro_alt_builtin`, mirrors the RetroSpy `switch-pro-alt` layout as data for future custom-skin conversion, but it is not active until matching panes/assets are generated.
 - The visual panes come from a modified `info_melee` `layout.arc`. The default build expects that layout to be installed as a normal Smash data replacement.
 - Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
 - Visual panes are resolved once per `info_melee` layout/root instance in the normal draw path, or once from captured P1 HUD parts layout data in the Training Modpack path, and then cached for per-frame updates.
@@ -125,6 +126,41 @@ sgpo_root
   sgpo_pro_btn_b
   sgpo_pro_a_marker
 ```
+
+The active built-in skin for this layout is `minimal_debug`.
+
+## Skin Model
+
+The renderer is skin-driven. It does not create or decode arbitrary PNG assets at runtime. Each skin is a Rust data table of `SkinElement` entries that map a logical `ControlId` to an already-existing named Smash UI pane.
+
+Each `SkinElement` describes:
+
+- logical control ID
+- pane name
+- optional image/material names for generated assets
+- base x/y position
+- width/height
+- released/pressed alpha and scale
+- optional stick movement range
+
+Current built-in skins:
+
+- `minimal_debug`: active square-based alpha skin using the patched `sgpo_pro_*` panes.
+- `switch_pro_alt_builtin`: inactive data-only skin based on RetroSpy's `switch-pro-alt` Switch section and PNG dimensions.
+
+Future custom skin flow:
+
+```text
+RetroSpy skin.xml + PNG assets
+  -> PC-side converter
+  -> generated layout.arc picture panes/materials/textures
+  -> generated skin manifest or Rust skin table
+  -> plugin updates panes by ControlId
+```
+
+The plugin should stay focused on polling controller state and updating named panes. Heavy PNG conversion, texture packing, material creation, and pane injection should happen on the PC side before runtime.
+
+See [Skin Converter Notes](docs/skin-converter-notes.md) for the planned converter boundary.
 
 The release artifact is expected at:
 

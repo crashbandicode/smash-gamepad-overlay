@@ -11,7 +11,7 @@ use crate::config::{
     TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG,
 };
 use crate::logger::trace;
-use crate::skin::PRO_CONTROLLER_STATIC_SKIN;
+use crate::skin::ACTIVE_SKIN;
 
 const HUD_LAYOUT_PROBE_LIMIT: usize = 16;
 
@@ -133,8 +133,7 @@ unsafe fn pane_from_layout_handle(pane_handle: u64) -> *mut Pane {
 
 unsafe fn layout_data_looks_like_match_root(layout_data: u64) -> bool {
     find_pane_in_layout_data(layout_data, P1_PARTS_PANE_NAME).is_some()
-        && find_pane_in_layout_data(layout_data, PRO_CONTROLLER_STATIC_SKIN.root_pane_name)
-            .is_some()
+        && find_pane_in_layout_data(layout_data, ACTIVE_SKIN.root_pane_name).is_some()
 }
 
 fn log_captured_layout_probe(layout_data: u64, name: &[u8]) {
