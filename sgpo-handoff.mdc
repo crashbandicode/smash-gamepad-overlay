@@ -1,0 +1,23 @@
+---
+description: Smash Gamepad Overlay project context
+alwaysApply: true
+---
+
+This repo is `smash-gamepad-overlay`, a Rust/cargo-skyline Super Smash Bros. Ultimate in-game controller overlay.
+
+Before making architectural changes, read:
+- AGENTS.md
+- AGENTSUMMARY.md
+- README.md
+- docs/alpha-validation-checklist.md
+- docs/skin-converter-notes.md when working on skins
+
+AGENTSUMMARY.md is the canonical current-state handoff summary.
+
+Key constraints:
+- Runtime feature must remain an in-game Skyline plugin.
+- Do not implement a PC/OBS/browser/network overlay.
+- Online research and external repo inspection are allowed.
+- Do not commit Nintendo assets such as data.arc, layout.arc, extracted BFLYT/BFLAN/BNTX files, textures, or modified game assets.
+- Keep DebugText fallback unless explicitly removing it.
+- Preserve Training Modpack compatibility and patched info_melee/layout.arc workflow.

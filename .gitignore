@@ -24,6 +24,7 @@ __pycache__/
 # Editor and local tooling state
 .vscode/
 .idea/
+.cursor/
 .cursorindexingignore
 .specstory/
 

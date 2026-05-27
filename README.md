@@ -32,6 +32,25 @@ The first milestone is intentionally small:
 - Skyline installed for Smash.
 - Smash Ultimate title ID: `01006A800016E000`.
 
+The current development setup is tailored around a Windows 11 host with Ubuntu running in WSL2. Emulator deployment paths, plugin copy paths, and log locations should stay local in `.env`.
+
+## Agent Use
+
+This repo includes a few handoff files for AI coding agents:
+
+- `AGENTS.md`: general project instructions and constraints for Codex-style agents.
+- `CLAUDE.md`: Claude Code entry point that references the shared handoff files.
+- `AGENTSUMMARY.md`: canonical current-state summary; update it when architecture, hooks, asset workflow, offsets, or next steps change.
+- `sgpo-handoff.mdc`: portable Cursor rule content for this project.
+
+For Cursor, copy the tracked `sgpo-handoff.mdc` file into your local workspace rules path:
+
+```text
+.cursor/rules/sgpo-handoff.mdc
+```
+
+The local `.cursor/` directory is ignored. Keep the tracked root `sgpo-handoff.mdc` updated, then copy it into `.cursor/rules/` when you want Cursor to apply it.
+
 ## Build
 
 Check the plugin:
