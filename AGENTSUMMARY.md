@@ -31,7 +31,7 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Has two display modes:
   - `DebugText`: original compact troubleshooting text.
   - `Visual`: skin-driven generic pane renderer.
-- `Visual` targets a minimal full Switch Pro Controller pane skin under `sgpo_root`.
+- `Visual` targets the active `minimal_debug` square pane skin under `sgpo_root`.
 - The modified match layout provides 24 child `sgpo_pro_*` picture panes for face buttons, shoulders/triggers, stick clicks, plus/minus, d-pad cardinals/diagonals, stick gates, and stick dots.
 - `sgpo_pro_a_marker` keeps the previously tested A-button pane name.
 - Pressed buttons dim/brighten and scale; stick dots move from normalized stick positions.
@@ -47,8 +47,14 @@ Build the first milestone of a Rust-only cargo-skyline plugin that renders a P1 
 - Skin abstraction added:
   - `ControlId`: logical controls/buttons/sticks/triggers.
   - `ControllerViewState`: maps `ControllerSnapshot` into pressed/released values plus normalized stick/trigger values.
-  - `SkinElement`: maps a control to a pane name, base position, size, alpha/visibility states, and optional stick movement radius.
-  - Built-in skin: `minimal_pro_controller_full`.
+  - `SkinElement`: maps a control to a pane name, optional source image/material names, base position, size, alpha/visibility/scale states, and optional x/y stick movement range.
+  - Active built-in skin: `minimal_debug`.
+  - Inactive built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout as data only.
+- Custom-skin direction:
+  - the plugin should not parse arbitrary PNGs or construct complete visual assets at runtime;
+  - a future PC-side converter should read RetroSpy-style `skin.xml` plus PNG assets;
+  - that converter should generate the patched Smash `layout.arc` panes/materials/textures and a matching skin manifest/table;
+  - the plugin should then continue to update already-existing named panes by `ControlId`.
 - Writes diagnostics to `sd:/smash-gamepad-overlay.log`.
 - Startup logs include a build ID so stale installed NROs can be identified.
 - Build IDs use `git rev-list --count HEAD` as the `c*` change count plus a local Cargo build counter. The local build counter lives under `target/` and resets after `cargo clean`.

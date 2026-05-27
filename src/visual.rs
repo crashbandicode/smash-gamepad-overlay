@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::config::{OverlayConfig, OVERLAY_CONFIG};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
-use crate::skin::{BuiltInSkin, SkinElement, PRO_CONTROLLER_STATIC_SKIN};
+use crate::skin::{BuiltInSkin, SkinElement, ACTIVE_SKIN};
 use crate::ui::find_pane_by_name;
 
 pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
@@ -188,7 +188,7 @@ pub(crate) unsafe fn render_visual_overlay(
     let view_state = snapshot
         .map(ControllerViewState::from_snapshot)
         .unwrap_or_else(ControllerViewState::neutral);
-    (*VISUAL_RUNTIME.0.get()).render(layout, root_pane, &PRO_CONTROLLER_STATIC_SKIN, &view_state)
+    (*VISUAL_RUNTIME.0.get()).render(layout, root_pane, &ACTIVE_SKIN, &view_state)
 }
 
 unsafe fn resolve_skin(
@@ -307,8 +307,8 @@ pub(crate) unsafe fn update_visual_skin_pane(
     };
     let (stick_x, stick_y) = state
         .stick_position(element.control_id)
-        .zip(element.stick_movement_radius)
-        .map(|((x, y), radius)| (x * radius, y * radius))
+        .zip(element.stick_movement)
+        .map(|((x, y), movement)| (x * movement.x, y * movement.y))
         .unwrap_or((0.0, 0.0));
 
     (*pane).set_visible(visible);

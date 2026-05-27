@@ -28,6 +28,7 @@ use crate::logger::{reset_trace_file, trace};
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
 };
+use crate::skin::{built_in_asset_metadata_count, built_in_skin_count, ACTIVE_SKIN};
 use crate::ui::{draw_overlay, layout_name_is};
 
 static DRAW_HOOK_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -77,6 +78,15 @@ pub fn main() {
     trace(&format!(
         "registered {} logical controls",
         logical_control_count()
+    ));
+    trace(&format!(
+        "active skin '{}' ({} built-in skins available)",
+        ACTIVE_SKIN.name,
+        built_in_skin_count()
+    ));
+    trace(&format!(
+        "registered {} skin asset metadata entries",
+        built_in_asset_metadata_count()
     ));
 
     let training_modpack_present = training_modpack_plugin_present();

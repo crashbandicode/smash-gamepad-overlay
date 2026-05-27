@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::input::{poll_p1_controller, ControllerViewState};
 use crate::logger::trace;
-use crate::skin::{BuiltInSkin, PRO_CONTROLLER_STATIC_SKIN};
+use crate::skin::{BuiltInSkin, ACTIVE_SKIN};
 use crate::visual::{
     hide_visual_skin_root, update_visual_skin_pane, update_visual_skin_root_with_config,
     VisualRenderError, MAX_RESOLVED_SKIN_ELEMENTS,
@@ -128,7 +128,7 @@ impl HudVisualRuntime {
             );
             for (pane, element) in resolved.panes[..resolved.pane_count]
                 .iter()
-                .zip(PRO_CONTROLLER_STATIC_SKIN.elements.iter())
+                .zip(ACTIVE_SKIN.elements.iter())
             {
                 update_visual_skin_pane(*pane, element, state);
             }
@@ -216,12 +216,12 @@ impl ResolvedHudSkin {
     fn is_valid(&self) -> bool {
         self.layout_data != 0
             && !self.skin_root.is_null()
-            && self.skin_name == PRO_CONTROLLER_STATIC_SKIN.name
+            && self.skin_name == ACTIVE_SKIN.name
             && matches!(
                 self.layout_kind,
                 HudLayoutKind::MatchRoot | HudLayoutKind::P1Parts | HudLayoutKind::P1AltParts
             )
-            && self.pane_count == PRO_CONTROLLER_STATIC_SKIN.elements.len()
+            && self.pane_count == ACTIVE_SKIN.elements.len()
             && self.panes[..self.pane_count]
                 .iter()
                 .all(|pane| !pane.is_null())
@@ -247,11 +247,7 @@ pub(super) fn reset_runtime() {
 }
 
 pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout, training_mode: bool) {
-    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(
-        captured,
-        &PRO_CONTROLLER_STATIC_SKIN,
-        training_mode,
-    );
+    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, &ACTIVE_SKIN, training_mode);
 }
 
 pub(super) unsafe fn update_runtime(state: &ControllerViewState, training_mode: bool) -> bool {
