@@ -487,8 +487,25 @@ def parse_control_ids(input_rs: Path) -> list[str]:
     return variants
 
 
+_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.S)
+
+
+def strip_rust_comments(text: str) -> str:
+    """Remove `//` line comments and non-nested `/* */` block comments.
+
+    Not string-literal aware: a `//` inside a `"..."` string would still be
+    stripped. Acceptable for this project because pane-name and image-name
+    strings in src/skin.rs never contain `//` or `/*`.
+    """
+    no_block = _BLOCK_COMMENT_RE.sub("", text)
+    return _LINE_COMMENT_RE.sub("", no_block)
+
+
 def parse_switch_pro_alt_builtin(skin_rs: Path) -> list[BuiltInElement]:
-    text = skin_rs.read_text(encoding="utf-8")
+    # Strip comments first so the substring search for `= [` and `];` cannot
+    # match characters inside an explanatory doc comment.
+    text = strip_rust_comments(skin_rs.read_text(encoding="utf-8"))
     start = text.find("const SWITCH_PRO_ALT_ELEMENTS")
     if start < 0:
         raise ValueError(f"Could not find SWITCH_PRO_ALT_ELEMENTS in {skin_rs}")

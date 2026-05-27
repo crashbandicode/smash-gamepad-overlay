@@ -20,6 +20,12 @@
 # Python helper caches
 __pycache__/
 *.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
 # Editor and local tooling state
 .vscode/
