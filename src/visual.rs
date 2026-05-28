@@ -8,7 +8,7 @@ use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
 use crate::pane_utils::pane_name_matches;
-use crate::skin::{BuiltInSkin, SkinElement, ACTIVE_SKIN};
+use crate::skin::{active_skin, reload_active_skin_config, BuiltInSkin, SkinElement};
 use crate::ui::find_pane_by_name;
 
 pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
@@ -197,7 +197,7 @@ pub(crate) unsafe fn render_visual_overlay(
         &mut *VISUAL_CACHE.0.get(),
         layout,
         root_pane,
-        &ACTIVE_SKIN,
+        active_skin(),
         &view_state,
     )
 }
@@ -229,6 +229,7 @@ pub(crate) fn install_draw_path_visual_reset_hooks() {
 
 #[skyline::hook(offset = HUD_MATCH_START_OFFSET, inline)]
 unsafe fn reset_visual_runtime_on_match_start(_: &InlineCtx) {
+    reload_active_skin_config("match start");
     reset_visual_runtime();
 }
 

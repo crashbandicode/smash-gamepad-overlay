@@ -1,4 +1,13 @@
 use crate::input::ControlId;
+use crate::logger::trace;
+use std::fs;
+use std::io;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::config::SKIN_CONFIG_PATH;
+
+const FALLBACK_SKIN_INDEX: usize = 0;
+static ACTIVE_SKIN_INDEX: AtomicUsize = AtomicUsize::new(FALLBACK_SKIN_INDEX);
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct StickMovementRange {
@@ -35,9 +44,28 @@ pub(crate) struct BuiltInSkin {
     pub elements: &'static [SkinElement],
 }
 
-pub(crate) const ACTIVE_SKIN: BuiltInSkin = MINIMAL_DEBUG_SKIN;
+static BUILT_IN_SKINS: [BuiltInSkin; 2] = [MINIMAL_DEBUG_SKIN, SWITCH_PRO_ALT_BUILTIN_SKIN];
 
-const BUILT_IN_SKINS: [BuiltInSkin; 2] = [MINIMAL_DEBUG_SKIN, SWITCH_PRO_ALT_BUILTIN_SKIN];
+pub(crate) fn active_skin() -> &'static BuiltInSkin {
+    let index = ACTIVE_SKIN_INDEX.load(Ordering::Relaxed);
+    BUILT_IN_SKINS
+        .get(index)
+        .unwrap_or(&BUILT_IN_SKINS[FALLBACK_SKIN_INDEX])
+}
+
+pub(crate) fn reload_active_skin_config(reason: &str) {
+    let previous_index = ACTIVE_SKIN_INDEX.load(Ordering::Relaxed);
+    let (selected_index, source) = selected_skin_index_from_config();
+    ACTIVE_SKIN_INDEX.store(selected_index, Ordering::Relaxed);
+
+    let selected_skin = &BUILT_IN_SKINS[selected_index];
+    if previous_index != selected_index {
+        trace(&format!(
+            "active skin '{}' selected from {source} ({reason})",
+            selected_skin.name
+        ));
+    }
+}
 
 pub(crate) fn built_in_skin_count() -> usize {
     BUILT_IN_SKINS.len()
@@ -49,6 +77,84 @@ pub(crate) fn built_in_asset_metadata_count() -> usize {
         .flat_map(|skin| skin.elements.iter())
         .filter(|element| element.image_name.is_some() || element.material_name.is_some())
         .count()
+}
+
+fn selected_skin_index_from_config() -> (usize, &'static str) {
+    let contents = match fs::read_to_string(SKIN_CONFIG_PATH) {
+        Ok(contents) => contents,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return (FALLBACK_SKIN_INDEX, "missing config fallback");
+        }
+        Err(error) => {
+            trace(&format!(
+                "could not read skin config {SKIN_CONFIG_PATH}: {error}; using '{}'",
+                BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
+            ));
+            return (FALLBACK_SKIN_INDEX, "read-error fallback");
+        }
+    };
+
+    let Some(active_skin_name) = json_string_field(&contents, "active_skin") else {
+        trace(&format!(
+            "skin config {SKIN_CONFIG_PATH} does not contain string field 'active_skin'; using '{}'",
+            BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
+        ));
+        return (FALLBACK_SKIN_INDEX, "invalid config fallback");
+    };
+
+    match built_in_skin_index(&active_skin_name) {
+        Some(index) => (index, SKIN_CONFIG_PATH),
+        None => {
+            trace(&format!(
+                "skin config requested unknown skin '{active_skin_name}'; using '{}'",
+                BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
+            ));
+            (FALLBACK_SKIN_INDEX, "unknown-skin fallback")
+        }
+    }
+}
+
+fn built_in_skin_index(name: &str) -> Option<usize> {
+    BUILT_IN_SKINS
+        .iter()
+        .position(|skin| skin.name.eq_ignore_ascii_case(name.trim()))
+}
+
+fn json_string_field(contents: &str, field: &str) -> Option<String> {
+    let key = format!("\"{field}\"");
+    let key_index = contents.find(&key)?;
+    let after_key = &contents[key_index + key.len()..];
+    let colon_index = after_key.find(':')?;
+    let value = after_key[colon_index + 1..].trim_start();
+    if !value.starts_with('"') {
+        return None;
+    }
+
+    parse_json_string(value)
+}
+
+fn parse_json_string(value: &str) -> Option<String> {
+    let mut output = String::new();
+    let mut chars = value[1..].chars();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '"' => return Some(output),
+            '\\' => {
+                let escaped = chars.next()?;
+                match escaped {
+                    '"' | '\\' | '/' => output.push(escaped),
+                    'n' => output.push('\n'),
+                    'r' => output.push('\r'),
+                    't' => output.push('\t'),
+                    _ => return None,
+                }
+            }
+            _ => output.push(ch),
+        }
+    }
+
+    None
 }
 
 pub(crate) const MINIMAL_DEBUG_SKIN: BuiltInSkin = BuiltInSkin {

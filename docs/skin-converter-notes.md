@@ -66,6 +66,21 @@ The tool validates that the generated manifest exactly matches the inactive
 `switch_pro_alt_builtin` Rust target. It does not copy PNGs, generate
 Nintendo layout assets, or write a modified `layout.arc`.
 
+## Runtime Skin Selection
+
+The plugin reads `sd:/ultimate/mods/smash-gamepad-overlay/config.json` at
+startup and on match start. Today that config selects a built-in skin by name:
+
+```json
+{
+  "active_skin": "minimal_debug"
+}
+```
+
+This is the first hot-swap boundary. It does not load arbitrary generated
+manifest elements yet; `switch_pro_alt_builtin` can be selected only after a
+matching layout with `sgpo_alt_*` panes exists.
+
 Parser regression tests cover the Rust-source parsing used by the analyzer:
 
 ```bash

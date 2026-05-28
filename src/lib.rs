@@ -25,7 +25,9 @@ use crate::logger::{log_startup_banner, reset_trace_file, trace, StartupBanner};
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
 };
-use crate::skin::{built_in_asset_metadata_count, built_in_skin_count, ACTIVE_SKIN};
+use crate::skin::{
+    active_skin, built_in_asset_metadata_count, built_in_skin_count, reload_active_skin_config,
+};
 use crate::ui::{draw_overlay, layout_name_is};
 use crate::visual::install_draw_path_visual_reset_hooks;
 
@@ -58,6 +60,7 @@ unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u6
 #[skyline::main(name = "smash-gamepad-overlay")]
 pub fn main() {
     reset_trace_file();
+    reload_active_skin_config("startup");
     let smash_display_version = display_version();
     log_startup_banner(StartupBanner {
         build_id: build_info::BUILD_ID,
@@ -65,7 +68,7 @@ pub fn main() {
         local_build_number: build_info::LOCAL_BUILD_NUMBER,
         display_version: &smash_display_version,
         logical_control_count: logical_control_count(),
-        active_skin: ACTIVE_SKIN.name,
+        active_skin: active_skin().name,
         built_in_skin_count: built_in_skin_count(),
         asset_metadata_count: built_in_asset_metadata_count(),
     });

@@ -25,6 +25,7 @@ pub(crate) const HIDE_TRAINING_GAMEPAD_FLAG_PATH: &str =
     "sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD";
 pub(crate) const FORCE_TRAINING_MODPACK_COMPAT_FLAG_PATH: &str =
     "sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT";
+pub(crate) const SKIN_CONFIG_PATH: &str = "sd:/ultimate/mods/smash-gamepad-overlay/config.json";
 
 pub(crate) const NPAD_ID_NO1: u32 = 0;
 pub(crate) const NPAD_ID_HANDHELD: u32 = 0x20;
