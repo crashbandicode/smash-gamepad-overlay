@@ -9,6 +9,7 @@ use crate::config::{
 use crate::input::poll_view_state_now;
 use crate::logger::trace;
 use crate::offsets::display_version;
+use crate::skin::reload_active_skin_config;
 
 use super::cache;
 use super::capture;
@@ -70,6 +71,7 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
 
 #[skyline::hook(offset = HUD_MATCH_START_OFFSET, inline)]
 unsafe fn reset_match_hud_capture_on_start(_: &InlineCtx) {
+    reload_active_skin_config("match start");
     refresh_hide_training_gamepad_flag();
     cache::reset_runtime();
 }

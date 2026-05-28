@@ -8,7 +8,7 @@ use crate::debug_text::draw_debug_text_overlay;
 use crate::input::ControllerSnapshot;
 use crate::logger::trace;
 use crate::pane_utils::cstr_bytes_to_str;
-use crate::skin::ACTIVE_SKIN;
+use crate::skin::active_skin;
 use crate::visual::{render_visual_overlay, VisualRenderError};
 
 #[skyline::from_offset(0x59970)]
@@ -82,9 +82,9 @@ fn log_visual_fallback(error: VisualRenderError) {
             ));
             trace(&format!(
                 "skin/layout mismatch: active skin '{}' missing first pane '{}'; expected layout flavor: {}",
-                ACTIVE_SKIN.name,
+                active_skin().name,
                 cstr_bytes_to_str(pane_name),
-                ACTIVE_SKIN.expected_layout_flavor
+                active_skin().expected_layout_flavor
             ));
             trace(
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",

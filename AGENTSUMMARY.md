@@ -54,8 +54,9 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
   - Active built-in skin: `minimal_debug`.
   - Inactive built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout as data only.
 - `ControlId` is `#[repr(u8)]`; a compile-time assertion keeps `LOGICAL_CONTROL_COUNT` synchronized with the enum.
-- Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match `ACTIVE_SKIN`.
+- Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match the selected built-in skin.
 - Active skins with more than `MAX_RESOLVED_SKIN_ELEMENTS` are rejected explicitly before pane resolution.
+- Runtime skin selection reads `sd:/ultimate/mods/smash-gamepad-overlay/config.json` at startup and on match start. The config currently selects a built-in skin by name (`minimal_debug` by default). Missing/invalid config falls back to `minimal_debug`; arbitrary generated manifest elements are not loaded by the plugin yet.
 - Custom-skin direction:
   - the plugin should not parse arbitrary PNGs or construct complete visual assets at runtime;
   - a future PC-side converter should read RetroSpy-style `skin.xml` plus PNG assets;

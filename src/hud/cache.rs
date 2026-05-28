@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::input::ControllerViewState;
 use crate::logger::trace;
 use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
-use crate::skin::{BuiltInSkin, ACTIVE_SKIN};
+use crate::skin::{active_skin, BuiltInSkin};
 use crate::visual::{
     hide_visual_skin_root, update_visual_skin_pane, update_visual_skin_root_with_config,
     validate_skin_size, VisualRenderError, MAX_RESOLVED_SKIN_ELEMENTS,
@@ -134,6 +134,7 @@ impl HudVisualRuntime {
 
     unsafe fn update(&mut self, state: &ControllerViewState, training_mode: bool) -> bool {
         let mut updated_any = false;
+        let skin = active_skin();
         let prefer_match_root = self.has_valid_match_root();
 
         for cache in &mut self.caches {
@@ -141,7 +142,7 @@ impl HudVisualRuntime {
                 continue;
             };
 
-            if !resolved.is_valid() {
+            if !resolved.is_valid(skin) {
                 *cache = HudCache::Empty;
                 continue;
             }
@@ -158,7 +159,7 @@ impl HudVisualRuntime {
             );
             for (pane, element) in resolved.panes[..resolved.pane_count]
                 .iter()
-                .zip(ACTIVE_SKIN.elements.iter())
+                .zip(skin.elements.iter())
             {
                 update_visual_skin_pane(*pane, element, state);
             }
@@ -180,7 +181,7 @@ impl HudVisualRuntime {
     fn has_valid_match_root(&self) -> bool {
         self.caches.iter().any(|cache| match *cache {
             HudCache::Resolved(resolved) => {
-                resolved.layout_kind.is_match_root() && resolved.is_valid()
+                resolved.layout_kind.is_match_root() && resolved.is_valid(active_skin())
             }
             _ => false,
         })
@@ -229,19 +230,19 @@ impl ResolvedHudSkin {
         self.pane_count += 1;
     }
 
-    fn is_valid(&self) -> bool {
+    fn is_valid(&self, skin: &BuiltInSkin) -> bool {
         self.layout_data != 0
             && !self.skin_root.is_null()
-            && self.skin_name == ACTIVE_SKIN.name
+            && self.skin_name == skin.name
             && matches!(
                 self.layout_kind,
                 HudLayoutKind::MatchRoot | HudLayoutKind::P1Parts | HudLayoutKind::P1AltParts
             )
-            && unsafe { pane_name_matches(self.skin_root, ACTIVE_SKIN.root_pane_name) }
-            && self.pane_count == ACTIVE_SKIN.elements.len()
+            && unsafe { pane_name_matches(self.skin_root, skin.root_pane_name) }
+            && self.pane_count == skin.elements.len()
             && self.panes[..self.pane_count]
                 .iter()
-                .zip(ACTIVE_SKIN.elements.iter())
+                .zip(skin.elements.iter())
                 .all(|(pane, element)| unsafe { pane_name_matches(*pane, element.pane_name) })
     }
 }
@@ -262,7 +263,7 @@ pub(super) fn reset_runtime() {
 
 pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout) {
     let _guard = HudRuntimeGuard::acquire();
-    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, &ACTIVE_SKIN);
+    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, active_skin());
 }
 
 pub(super) unsafe fn update_runtime(state: &ControllerViewState, training_mode: bool) -> bool {
@@ -313,7 +314,7 @@ fn log_capture_miss(error: VisualRenderError) {
             ));
             trace(&format!(
                 "skin/layout mismatch: active skin '{}' missing first pane '{pane}'; expected layout flavor: {}",
-                ACTIVE_SKIN.name, ACTIVE_SKIN.expected_layout_flavor
+                active_skin().name, active_skin().expected_layout_flavor
             ));
             trace(
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",

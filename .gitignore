@@ -12,6 +12,7 @@
 
 # Local deployment paths/secrets
 /.env
+/config.json
 
 # Local game dumps and extracted binary assets
 /data.arc
