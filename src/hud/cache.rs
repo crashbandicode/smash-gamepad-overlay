@@ -151,6 +151,8 @@ impl HudVisualRuntime {
         training_mode: bool,
         skin: &'static BuiltInSkin,
     ) -> bool {
+        self.resolve_skin_swaps(skin);
+
         let mut updated_any = false;
         let prefer_match_root = self.has_valid_match_root(skin);
 
@@ -188,6 +190,37 @@ impl HudVisualRuntime {
         }
 
         updated_any
+    }
+
+    unsafe fn resolve_skin_swaps(&mut self, skin: &'static BuiltInSkin) {
+        for cache in &mut self.caches {
+            match *cache {
+                HudCache::Resolved(resolved) if resolved.skin_name != skin.name => {
+                    hide_resolved_hud_skin(resolved);
+                    *cache = resolve_hud_cache_entry(
+                        CapturedHudLayout {
+                            layout_data: resolved.layout_data,
+                            kind: resolved.layout_kind,
+                        },
+                        skin,
+                    );
+                }
+                HudCache::Missing {
+                    layout_data,
+                    layout_kind,
+                    skin_name,
+                } if skin_name != skin.name => {
+                    *cache = resolve_hud_cache_entry(
+                        CapturedHudLayout {
+                            layout_data,
+                            kind: layout_kind,
+                        },
+                        skin,
+                    );
+                }
+                _ => {}
+            }
+        }
     }
 
     fn has_cache_for(&self, captured: CapturedHudLayout, skin: &BuiltInSkin) -> bool {
@@ -277,6 +310,7 @@ impl ResolvedHudSkin {
 static HUD_CAPTURE_MISS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_LAYOUT_PATCH_PROBE_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_CACHE_FULL_LOGGED: AtomicBool = AtomicBool::new(false);
+static HUD_SKIN_SWAP_RESOLVED_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static HUD_VISUAL_RUNTIME: HudVisualRuntimeCell =
     HudVisualRuntimeCell(UnsafeCell::new(HudVisualRuntime::new()));
@@ -334,6 +368,34 @@ unsafe fn resolve_hud_skin(
     }
 
     Ok(resolved)
+}
+
+unsafe fn resolve_hud_cache_entry(
+    captured: CapturedHudLayout,
+    skin: &'static BuiltInSkin,
+) -> HudCache {
+    match resolve_hud_skin(captured, skin) {
+        Ok(resolved) => {
+            if !HUD_SKIN_SWAP_RESOLVED_LOGGED.swap(true, Ordering::Relaxed) {
+                trace(&format!(
+                    "non-draw HUD path re-resolved cached {} layout for skin '{}'",
+                    captured.kind.name(),
+                    skin.name
+                ));
+            }
+
+            HudCache::Resolved(resolved)
+        }
+        Err(error) => {
+            log_capture_miss(error);
+            log_layout_patch_probe(captured.layout_data, captured.kind.name(), skin);
+            HudCache::Missing {
+                layout_data: captured.layout_data,
+                layout_kind: captured.kind,
+                skin_name: skin.name,
+            }
+        }
+    }
 }
 
 fn log_capture_miss(error: VisualRenderError) {

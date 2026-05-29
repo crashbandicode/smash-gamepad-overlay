@@ -147,8 +147,10 @@ python tools/sgpo_skin_tool.py --force
 
 `auto` is the default install mode. It selects `switch_pro_alt_builtin` for
 Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for
-GameCube controller style. To force the second generated skin regardless of
-controller family, change the installed config to:
+GameCube controller style. Auto mode is evaluated from the live P1 controller
+snapshot, so it can swap skins during a match if the controller family changes.
+To force the second generated skin regardless of controller family, change the
+installed config to:
 
 ```json
 {

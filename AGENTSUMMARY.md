@@ -139,8 +139,8 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
 - Current generated skins:
   - `switch_pro_alt_builtin`: `sgpo_alt_*` panes from RetroSpy `switch-pro-alt`.
   - `gamecube_tron_builtin`: `sgpo_gct_*` panes from RetroSpy `gamecube-tron`.
-- Runtime hot-swap is config-based: edit `sd:/ultimate/mods/smash-gamepad-overlay/config.json` and start a new match. The plugin still does not parse arbitrary skin manifests or PNGs at runtime.
-- `active_skin: "auto"` selects `switch_pro_alt_builtin` for Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for GameCube controller style. The runtime checks the current P1 controller family while rendering, so a mid-match family change should switch skins and clear the previous skin's panes; this needs hardware/emulator validation.
+- Config hot-swap is match-start based: edit `sd:/ultimate/mods/smash-gamepad-overlay/config.json` and start a new match. The plugin still does not parse arbitrary skin manifests or PNGs at runtime.
+- `active_skin: "auto"` selects `switch_pro_alt_builtin` for Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for GameCube controller style. The runtime checks the current P1 controller family while rendering, so a mid-match family change switches skins and clears the previous skin's panes. The non-draw HUD path re-resolves the new skin from cached HUD layout data immediately instead of waiting for another capture event.
 - Current custom pane tree:
   - `sgpo_root`
   - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`
