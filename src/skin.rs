@@ -1,13 +1,19 @@
-use crate::input::ControlId;
+use crate::input::{ControlId, ControllerFamily, ControllerSnapshot};
 use crate::logger::trace;
 use std::fs;
 use std::io;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use crate::config::SKIN_CONFIG_PATH;
 
 const FALLBACK_SKIN_INDEX: usize = 0;
+const SWITCH_PRO_ALT_SKIN_INDEX: usize = 1;
+const GAMECUBE_TRON_SKIN_INDEX: usize = 2;
+const AUTO_ACTIVE_SKIN_NAME: &str = "auto";
 static ACTIVE_SKIN_INDEX: AtomicUsize = AtomicUsize::new(FALLBACK_SKIN_INDEX);
+static AUTO_SKIN_ENABLED: AtomicBool = AtomicBool::new(false);
+static AUTO_SWITCH_SKIN_INDEX: AtomicUsize = AtomicUsize::new(SWITCH_PRO_ALT_SKIN_INDEX);
+static AUTO_GAMECUBE_SKIN_INDEX: AtomicUsize = AtomicUsize::new(GAMECUBE_TRON_SKIN_INDEX);
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct StickMovementRange {
@@ -58,17 +64,50 @@ pub(crate) fn active_skin() -> &'static BuiltInSkin {
         .unwrap_or(&BUILT_IN_SKINS[FALLBACK_SKIN_INDEX])
 }
 
-pub(crate) fn reload_active_skin_config(reason: &str) {
-    let previous_index = ACTIVE_SKIN_INDEX.load(Ordering::Relaxed);
-    let (selected_index, source) = selected_skin_index_from_config();
-    ACTIVE_SKIN_INDEX.store(selected_index, Ordering::Relaxed);
+pub(crate) fn select_active_skin_for_snapshot(
+    snapshot: Option<ControllerSnapshot>,
+    reason: &str,
+) -> &'static BuiltInSkin {
+    if !AUTO_SKIN_ENABLED.load(Ordering::Relaxed) {
+        return active_skin();
+    }
 
-    let selected_skin = &BUILT_IN_SKINS[selected_index];
-    if previous_index != selected_index {
-        trace(&format!(
-            "active skin '{}' selected from {source} ({reason})",
-            selected_skin.name
-        ));
+    let Some(snapshot) = snapshot else {
+        return active_skin();
+    };
+
+    let selected_index = match snapshot.controller_family() {
+        ControllerFamily::Switch => AUTO_SWITCH_SKIN_INDEX.load(Ordering::Relaxed),
+        ControllerFamily::GameCube => AUTO_GAMECUBE_SKIN_INDEX.load(Ordering::Relaxed),
+    };
+
+    store_active_skin_index(selected_index, "auto", reason);
+    active_skin()
+}
+
+pub(crate) fn reload_active_skin_config(reason: &str) {
+    match selected_skin_config() {
+        SkinConfigSelection::Fixed {
+            selected_index,
+            source,
+        } => {
+            AUTO_SKIN_ENABLED.store(false, Ordering::Relaxed);
+            store_active_skin_index(selected_index, source, reason);
+        }
+        SkinConfigSelection::Auto {
+            switch_index,
+            gamecube_index,
+            source,
+        } => {
+            AUTO_SWITCH_SKIN_INDEX.store(switch_index, Ordering::Relaxed);
+            AUTO_GAMECUBE_SKIN_INDEX.store(gamecube_index, Ordering::Relaxed);
+            AUTO_SKIN_ENABLED.store(true, Ordering::Relaxed);
+            store_active_skin_index(switch_index, source, reason);
+            trace(&format!(
+                "auto skin selection enabled from {source}: switch='{}' gamecube='{}' ({reason})",
+                BUILT_IN_SKINS[switch_index].name, BUILT_IN_SKINS[gamecube_index].name
+            ));
+        }
     }
 }
 
@@ -84,18 +123,30 @@ pub(crate) fn built_in_asset_metadata_count() -> usize {
         .count()
 }
 
-fn selected_skin_index_from_config() -> (usize, &'static str) {
+enum SkinConfigSelection {
+    Fixed {
+        selected_index: usize,
+        source: &'static str,
+    },
+    Auto {
+        switch_index: usize,
+        gamecube_index: usize,
+        source: &'static str,
+    },
+}
+
+fn selected_skin_config() -> SkinConfigSelection {
     let contents = match fs::read_to_string(SKIN_CONFIG_PATH) {
         Ok(contents) => contents,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return (FALLBACK_SKIN_INDEX, "missing config fallback");
+            return fixed_selection(FALLBACK_SKIN_INDEX, "missing config fallback");
         }
         Err(error) => {
             trace(&format!(
                 "could not read skin config {SKIN_CONFIG_PATH}: {error}; using '{}'",
                 BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
             ));
-            return (FALLBACK_SKIN_INDEX, "read-error fallback");
+            return fixed_selection(FALLBACK_SKIN_INDEX, "read-error fallback");
         }
     };
 
@@ -104,18 +155,71 @@ fn selected_skin_index_from_config() -> (usize, &'static str) {
             "skin config {SKIN_CONFIG_PATH} does not contain string field 'active_skin'; using '{}'",
             BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
         ));
-        return (FALLBACK_SKIN_INDEX, "invalid config fallback");
+        return fixed_selection(FALLBACK_SKIN_INDEX, "invalid config fallback");
     };
 
+    if active_skin_name
+        .trim()
+        .eq_ignore_ascii_case(AUTO_ACTIVE_SKIN_NAME)
+    {
+        return SkinConfigSelection::Auto {
+            switch_index: configured_default_skin_index(
+                &contents,
+                "switch",
+                SWITCH_PRO_ALT_SKIN_INDEX,
+            ),
+            gamecube_index: configured_default_skin_index(
+                &contents,
+                "gamecube",
+                GAMECUBE_TRON_SKIN_INDEX,
+            ),
+            source: SKIN_CONFIG_PATH,
+        };
+    }
+
     match built_in_skin_index(&active_skin_name) {
-        Some(index) => (index, SKIN_CONFIG_PATH),
+        Some(index) => fixed_selection(index, SKIN_CONFIG_PATH),
         None => {
             trace(&format!(
                 "skin config requested unknown skin '{active_skin_name}'; using '{}'",
                 BUILT_IN_SKINS[FALLBACK_SKIN_INDEX].name
             ));
-            (FALLBACK_SKIN_INDEX, "unknown-skin fallback")
+            fixed_selection(FALLBACK_SKIN_INDEX, "unknown-skin fallback")
         }
+    }
+}
+
+fn fixed_selection(selected_index: usize, source: &'static str) -> SkinConfigSelection {
+    SkinConfigSelection::Fixed {
+        selected_index,
+        source,
+    }
+}
+
+fn configured_default_skin_index(contents: &str, field: &str, fallback_index: usize) -> usize {
+    let Some(name) = json_string_field(contents, field) else {
+        return fallback_index;
+    };
+
+    match built_in_skin_index(&name) {
+        Some(index) => index,
+        None => {
+            trace(&format!(
+                "skin config auto default '{field}' requested unknown skin '{name}'; using '{}'",
+                BUILT_IN_SKINS[fallback_index].name
+            ));
+            fallback_index
+        }
+    }
+}
+
+fn store_active_skin_index(selected_index: usize, source: &'static str, reason: &str) {
+    let previous_index = ACTIVE_SKIN_INDEX.swap(selected_index, Ordering::Relaxed);
+    if previous_index != selected_index {
+        trace(&format!(
+            "active skin '{}' selected from {source} ({reason})",
+            BUILT_IN_SKINS[selected_index].name
+        ));
     }
 }
 

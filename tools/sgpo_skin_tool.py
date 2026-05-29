@@ -111,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--nro", type=Path, default=DEFAULT_NRO)
     parser.add_argument("--toolbox-cli", help="path to toolbox-cli binary")
-    parser.add_argument("--active-skin", default="switch_pro_alt_builtin")
+    parser.add_argument("--active-skin", default="auto")
     parser.add_argument(
         "--include-skin",
         action="append",

@@ -134,7 +134,7 @@ python tools/build_skin_layout.py \
   --toolbox-cli /path/to/toolbox-cli \
   --skin "target/skin-build/switch-pro-alt/skin_manifest.json::/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt" \
   --skin "target/skin-build/gamecube-tron/skin_manifest.json::/mnt/c/Program Files/RetroSpy/skins/gamecube-tron" \
-  --active-skin switch_pro_alt_builtin \
+  --active-skin auto \
   --force
 ```
 
@@ -142,10 +142,13 @@ For the local WSL2/Eden workflow, `tools/sgpo_skin_tool.py` wraps manifest
 generation, layout generation, config writing, backup, and NRO staging:
 
 ```bash
-python tools/sgpo_skin_tool.py --force --active-skin switch_pro_alt_builtin
+python tools/sgpo_skin_tool.py --force
 ```
 
-Switch to the second generated skin by changing the installed config to:
+`auto` is the default install mode. It selects `switch_pro_alt_builtin` for
+Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for
+GameCube controller style. To force the second generated skin regardless of
+controller family, change the installed config to:
 
 ```json
 {
@@ -160,7 +163,11 @@ startup and on match start. Today that config selects a built-in skin by name:
 
 ```json
 {
-  "active_skin": "minimal_debug"
+  "active_skin": "auto",
+  "default_skins": {
+    "switch": "switch_pro_alt_builtin",
+    "gamecube": "gamecube_tron_builtin"
+  }
 }
 ```
 

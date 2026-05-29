@@ -27,7 +27,9 @@ TOOLBOX_CLI_CANDIDATES = (
 )
 ARCPOLIS_LAYOUT_PATH = Path("ui/layout/info/info_melee/info_melee/layout.arc")
 MOD_FOLDER_NAME = "smash-gamepad-overlay"
-ACTIVE_SKIN_NAME = "switch_pro_alt_builtin"
+ACTIVE_SKIN_NAME = "auto"
+DEFAULT_SWITCH_SKIN_NAME = "switch_pro_alt_builtin"
+DEFAULT_GAMECUBE_SKIN_NAME = "gamecube_tron_builtin"
 ROOT_BFLYT = Path("blyt/info_melee.bflyt")
 PLAYER_PARTS_BFLYTS = (
     Path("blyt/info_melee_lct_player_00.bflyt"),
@@ -309,7 +311,14 @@ def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
 def write_skin_config(mod_root: Path, active_skin: str) -> Path:
     config_path = mod_root / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(json.dumps({"active_skin": active_skin}, indent=2) + "\n")
+    config = {
+        "active_skin": active_skin,
+        "default_skins": {
+            "switch": DEFAULT_SWITCH_SKIN_NAME,
+            "gamecube": DEFAULT_GAMECUBE_SKIN_NAME,
+        },
+    }
+    config_path.write_text(json.dumps(config, indent=2) + "\n")
     return config_path
 
 
