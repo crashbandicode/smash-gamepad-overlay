@@ -6,10 +6,10 @@ use crate::config::{
     HIDE_TRAINING_GAMEPAD_FLAG_PATH, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET,
     HUD_SET_INFO_ALPHA_OFFSET, SCENE_UPDATE_OFFSET,
 };
-use crate::input::poll_view_state_now;
+use crate::input::{poll_p1_controller, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
-use crate::skin::reload_active_skin_config;
+use crate::skin::{reload_active_skin_config, select_active_skin_for_snapshot};
 
 use super::cache;
 use super::capture;
@@ -40,10 +40,12 @@ unsafe fn capture_match_hud_layout_data(ctx: &InlineCtx) {
     }
 
     let training_mode = training_mode_active();
-    cache::capture_runtime(captured);
+    let snapshot = poll_p1_controller();
+    let skin = select_active_skin_for_snapshot(snapshot, "non-draw HUD capture");
+    cache::capture_runtime(captured, skin);
 
-    let view_state = poll_view_state_now();
-    if cache::update_runtime(&view_state, training_mode)
+    let view_state = ControllerViewState::from_optional_snapshot(snapshot);
+    if cache::update_runtime(&view_state, training_mode, skin)
         && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
     {
         trace("non-draw HUD path updated visual panes");
@@ -61,8 +63,10 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
         return;
     }
 
-    let view_state = poll_view_state_now();
-    if cache::update_runtime(&view_state, training_mode_active())
+    let snapshot = poll_p1_controller();
+    let skin = select_active_skin_for_snapshot(snapshot, "non-draw HUD scene update");
+    let view_state = ControllerViewState::from_optional_snapshot(snapshot);
+    if cache::update_runtime(&view_state, training_mode_active(), skin)
         && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
     {
         trace("non-draw HUD path updated visual panes");

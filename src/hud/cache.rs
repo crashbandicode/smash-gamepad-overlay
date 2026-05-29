@@ -8,8 +8,9 @@ use crate::logger::trace;
 use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
 use crate::skin::{active_skin, BuiltInSkin};
 use crate::visual::{
-    hide_visual_skin_root, update_visual_skin_pane, update_visual_skin_root_with_config,
-    validate_skin_size, VisualRenderError, MAX_RESOLVED_SKIN_ELEMENTS,
+    hide_visual_skin_pane, hide_visual_skin_root, update_visual_skin_pane,
+    update_visual_skin_root_with_config, validate_skin_size, VisualRenderError,
+    MAX_RESOLVED_SKIN_ELEMENTS,
 };
 
 use super::capture::{find_pane_in_layout_data, CapturedHudLayout, HudLayoutKind};
@@ -118,7 +119,7 @@ impl HudVisualRuntime {
         };
 
         if let HudCache::Resolved(resolved) = self.caches[slot_index] {
-            hide_visual_skin_root(resolved.skin_root);
+            hide_resolved_hud_skin(resolved);
         }
 
         match resolve_hud_skin(captured, skin) {
@@ -144,10 +145,14 @@ impl HudVisualRuntime {
         }
     }
 
-    unsafe fn update(&mut self, state: &ControllerViewState, training_mode: bool) -> bool {
+    unsafe fn update(
+        &mut self,
+        state: &ControllerViewState,
+        training_mode: bool,
+        skin: &'static BuiltInSkin,
+    ) -> bool {
         let mut updated_any = false;
-        let skin = active_skin();
-        let prefer_match_root = self.has_valid_match_root();
+        let prefer_match_root = self.has_valid_match_root(skin);
 
         for cache in &mut self.caches {
             let HudCache::Resolved(resolved) = *cache else {
@@ -155,6 +160,7 @@ impl HudVisualRuntime {
             };
 
             if !resolved.is_valid(skin) {
+                hide_resolved_hud_skin(resolved);
                 *cache = HudCache::Empty;
                 continue;
             }
@@ -191,10 +197,10 @@ impl HudVisualRuntime {
             .any(|cache| cache.cache_key() == Some(request))
     }
 
-    fn has_valid_match_root(&self) -> bool {
+    fn has_valid_match_root(&self, skin: &BuiltInSkin) -> bool {
         self.caches.iter().any(|cache| match *cache {
             HudCache::Resolved(resolved) => {
-                resolved.layout_kind.is_match_root() && resolved.is_valid(active_skin())
+                resolved.layout_kind.is_match_root() && resolved.is_valid(skin)
             }
             _ => false,
         })
@@ -282,14 +288,25 @@ pub(super) fn reset_runtime() {
     }
 }
 
-pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout) {
+pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout, skin: &'static BuiltInSkin) {
     let _guard = HudRuntimeGuard::acquire();
-    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, active_skin());
+    (*HUD_VISUAL_RUNTIME.0.get()).capture_layout_data(captured, skin);
 }
 
-pub(super) unsafe fn update_runtime(state: &ControllerViewState, training_mode: bool) -> bool {
+pub(super) unsafe fn update_runtime(
+    state: &ControllerViewState,
+    training_mode: bool,
+    skin: &'static BuiltInSkin,
+) -> bool {
     let _guard = HudRuntimeGuard::acquire();
-    (*HUD_VISUAL_RUNTIME.0.get()).update(state, training_mode)
+    (*HUD_VISUAL_RUNTIME.0.get()).update(state, training_mode, skin)
+}
+
+unsafe fn hide_resolved_hud_skin(resolved: ResolvedHudSkin) {
+    for pane in &resolved.panes[..resolved.pane_count] {
+        hide_visual_skin_pane(*pane);
+    }
+    hide_visual_skin_root(resolved.skin_root);
 }
 
 unsafe fn resolve_hud_skin(

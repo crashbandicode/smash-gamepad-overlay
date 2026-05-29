@@ -166,7 +166,7 @@ root.
 For the current WSL2/Eden setup with `.env` configured:
 
 ```sh
-python tools/sgpo_skin_tool.py --force --active-skin switch_pro_alt_builtin
+python tools/sgpo_skin_tool.py --force
 ```
 
 This includes both supported generated skins in the same layout:
@@ -180,8 +180,8 @@ To hot-swap, edit:
 sd:/ultimate/mods/smash-gamepad-overlay/config.json
 ```
 
-and change `active_skin` to one of the built-in names, then start a new match.
-The config is reloaded on match start, not every frame.
+and change `active_skin` to `auto` or one fixed built-in name, then start a new
+match. The config is reloaded on match start, not every frame.
 
 ## Runtime Skin Config
 
@@ -195,12 +195,26 @@ Current schema:
 
 ```json
 {
-  "active_skin": "minimal_debug"
+  "active_skin": "auto",
+  "default_skins": {
+    "switch": "switch_pro_alt_builtin",
+    "gamecube": "gamecube_tron_builtin"
+  }
 }
 ```
 
 If the file is missing, unreadable, malformed, or names an unknown skin, SGPO
 falls back to `minimal_debug`.
+
+With `active_skin` set to `auto`, SGPO selects a built-in skin from P1's current
+controller family:
+
+- Switch/Pro/Joy-Con/handheld controllers use `default_skins.switch`.
+- GameCube controllers use `default_skins.gamecube`.
+
+If either default is missing or invalid, SGPO falls back to the generated Switch
+Pro or GameCube default for that family. The selected skin can change while a
+match is running if P1's controller family changes.
 
 Currently supported built-in skin names:
 

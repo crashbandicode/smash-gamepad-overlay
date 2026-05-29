@@ -8,7 +8,9 @@ use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
 use crate::pane_utils::pane_name_matches;
-use crate::skin::{active_skin, reload_active_skin_config, BuiltInSkin, SkinElement};
+use crate::skin::{
+    reload_active_skin_config, select_active_skin_for_snapshot, BuiltInSkin, SkinElement,
+};
 use crate::ui::find_pane_by_name;
 
 pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
@@ -102,6 +104,7 @@ unsafe fn render_into_cache(
             Err(error)
         }
         _ => {
+            hide_cached_skin_elements_for_layout(cache, layout, layout_root);
             *cache = VisualCache::Empty;
             resolve_into_cache(cache, layout, layout_root, skin, state)
         }
@@ -191,13 +194,14 @@ pub(crate) unsafe fn render_visual_overlay(
     root_pane: *mut Pane,
     snapshot: Option<ControllerSnapshot>,
 ) -> Result<(), VisualRenderError> {
+    let skin = select_active_skin_for_snapshot(snapshot, "draw path");
     let view_state = ControllerViewState::from_optional_snapshot(snapshot);
     let _guard = VisualRuntimeGuard::acquire();
     render_into_cache(
         &mut *VISUAL_CACHE.0.get(),
         layout,
         root_pane,
-        active_skin(),
+        skin,
         &view_state,
     )
 }
@@ -350,6 +354,35 @@ pub(crate) unsafe fn hide_visual_skin_root(pane: *mut Pane) {
     (*pane).global_alpha = 0;
     (*pane).set_visible(false);
     (*pane).flags |= 1 << PaneFlag::IsGlobalMatrixDirty as u8;
+}
+
+pub(crate) unsafe fn hide_visual_skin_pane(pane: *mut Pane) {
+    if pane.is_null() {
+        return;
+    }
+
+    (*pane).alpha = 0;
+    (*pane).global_alpha = 0;
+    (*pane).set_visible(false);
+    (*pane).flags |= 1 << PaneFlag::IsGlobalMatrixDirty as u8;
+}
+
+unsafe fn hide_cached_skin_elements_for_layout(
+    cache: &VisualCache,
+    layout: *mut Layout,
+    layout_root: *mut Pane,
+) {
+    let VisualCache::Resolved(resolved) = *cache else {
+        return;
+    };
+
+    if resolved.layout != layout || resolved.layout_root != layout_root {
+        return;
+    }
+
+    for pane in &resolved.panes[..resolved.pane_count] {
+        hide_visual_skin_pane(*pane);
+    }
 }
 
 pub(crate) unsafe fn update_visual_skin_pane(

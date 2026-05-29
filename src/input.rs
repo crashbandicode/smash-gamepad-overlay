@@ -37,6 +37,22 @@ pub(crate) struct ControllerSnapshot {
     pub gc_triggers: Option<(u32, u32)>,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum ControllerFamily {
+    Switch,
+    GameCube,
+}
+
+impl ControllerSnapshot {
+    pub(crate) fn controller_family(self) -> ControllerFamily {
+        if self.style_flags & NPAD_STYLE_GAMECUBE != 0 {
+            ControllerFamily::GameCube
+        } else {
+            ControllerFamily::Switch
+        }
+    }
+}
+
 // `#[repr(u8)]` pins discriminants to 0..=N so the static assert below can
 // derive the variant count at compile time. These variants fit easily in a byte.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -209,10 +225,6 @@ impl ControllerViewState {
 
 pub(crate) unsafe fn poll_p1_controller() -> Option<ControllerSnapshot> {
     poll_controller(NPAD_ID_NO1).or_else(|| poll_controller(NPAD_ID_HANDHELD))
-}
-
-pub(crate) unsafe fn poll_view_state_now() -> ControllerViewState {
-    ControllerViewState::from_optional_snapshot(poll_p1_controller())
 }
 
 unsafe fn poll_controller(npad_id: u32) -> Option<ControllerSnapshot> {
