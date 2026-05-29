@@ -28,7 +28,7 @@ REPO_ROOT = TOOLS_DIR.parent
 FIXTURE_DIR = HERE / "fixtures"
 REAL_INPUT_RS = REPO_ROOT / "src" / "input.rs"
 REAL_SKIN_RS = REPO_ROOT / "src" / "skin.rs"
-REAL_SWITCH_PRO_ALT_COUNT = 20
+REAL_SWITCH_PRO_ALT_COUNT = 21
 
 # Allow `python tools/tests/test_analyze_retrospy_skin.py` to import the parser
 # module without requiring PYTHONPATH adjustments.
@@ -186,7 +186,7 @@ class RealSourceParseTest(unittest.TestCase):
 
     Fixture tests can pass even when the regex contract has drifted from the
     real code (e.g. if a builder is renamed). These tests pin the live
-    expectation: parse_switch_pro_alt_builtin must return exactly 20 elements
+    expectation: parse_switch_pro_alt_builtin must return exactly 21 elements
     and parse_control_ids must return at least LOGICAL_CONTROL_COUNT variants
     derived from src/input.rs.
     """
@@ -197,7 +197,7 @@ class RealSourceParseTest(unittest.TestCase):
             len(elements),
             REAL_SWITCH_PRO_ALT_COUNT,
             f"parse_switch_pro_alt_builtin returned {len(elements)} elements; "
-            f"expected {REAL_SWITCH_PRO_ALT_COUNT}. The image_button/image_stick "
+            f"expected {REAL_SWITCH_PRO_ALT_COUNT}. The image_static/image_button/image_stick "
             "regex is likely out of sync with src/skin.rs.",
         )
 

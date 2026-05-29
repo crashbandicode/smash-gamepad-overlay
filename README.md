@@ -19,8 +19,8 @@ Current baseline:
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
 - The overlay has two display modes: `Visual` and `DebugText`.
-- `Visual` mode is configured by default and targets the `minimal_debug` square pane skin under `sgpo_root`.
-- A second built-in skin definition, `switch_pro_alt_builtin`, mirrors the RetroSpy `switch-pro-alt` layout as data for future custom-skin conversion, but it is not active until matching panes/assets are generated.
+- `Visual` mode is configured by default and targets the `minimal_debug` square pane skin under `sgpo_root` unless a generated skin config selects another built-in skin.
+- Generated PNG-backed built-ins currently include `switch_pro_alt_builtin` and `gamecube_tron_builtin`; both require matching generated panes/assets in the installed `info_melee/layout.arc`.
 - The visual panes come from a modified `info_melee` `layout.arc`. The default build expects that layout to be installed as a normal Smash data replacement.
 - Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
 - Visual panes are resolved once per `info_melee` layout/root instance in the normal draw path, or once from captured P1 HUD parts layout data in the Training Modpack path, and then cached for per-frame updates.
@@ -79,7 +79,7 @@ Validate the patcher's BFLYT/pic1 assumptions against your unpacked source layou
 python tools/patch_info_melee_layout.py --self-test
 ```
 
-Stage the generated layout into an ARCropolis mod folder:
+Stage the generated square-pane layout into an ARCropolis mod folder:
 
 ```sh
 python tools/stage_arcropolis_layout.py
@@ -148,6 +148,41 @@ sgpo_root
 
 The active built-in skin for this layout is `minimal_debug`.
 
+## Generated Skin Install
+
+The current custom-skin release strategy is:
+
+```text
+shipped NRO + PC-side converter/install tool + user-owned RetroSpy skin assets
+  -> generated ARCropolis layout replacement
+  -> runtime config selecting the built-in skin table
+```
+
+The NRO does not embed Nintendo layout assets or third-party PNGs. The install
+tool generates the local `layout.arc`, writes `config.json`, backs up the prior
+installed layout/config/NRO, and stages the rebuilt NRO to the configured SD
+root.
+
+For the current WSL2/Eden setup with `.env` configured:
+
+```sh
+python tools/sgpo_skin_tool.py --force --active-skin switch_pro_alt_builtin
+```
+
+This includes both supported generated skins in the same layout:
+
+- `switch_pro_alt_builtin` from `/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt`
+- `gamecube_tron_builtin` from `/mnt/c/Program Files/RetroSpy/skins/gamecube-tron`
+
+To hot-swap, edit:
+
+```text
+sd:/ultimate/mods/smash-gamepad-overlay/config.json
+```
+
+and change `active_skin` to one of the built-in names, then start a new match.
+The config is reloaded on match start, not every frame.
+
 ## Runtime Skin Config
 
 SGPO reads an optional skin config at match startup:
@@ -174,6 +209,9 @@ Currently supported built-in skin names:
 - `switch_pro_alt_builtin`: data generated from RetroSpy's `switch-pro-alt`
   layout. It only renders if matching `sgpo_alt_*` panes already exist in the
   installed `info_melee/layout.arc`.
+- `gamecube_tron_builtin`: data generated from RetroSpy's `gamecube-tron`
+  layout. It only renders if matching `sgpo_gct_*` panes already exist in the
+  installed `info_melee/layout.arc`.
 
 The config is loaded at plugin startup and reloaded on match start. It is not
 read every frame.
@@ -195,7 +233,8 @@ Each `SkinElement` describes:
 Current built-in skins:
 
 - `minimal_debug`: active square-based alpha skin using the patched `sgpo_pro_*` panes.
-- `switch_pro_alt_builtin`: inactive data-only skin based on RetroSpy's `switch-pro-alt` Switch section and PNG dimensions.
+- `switch_pro_alt_builtin`: generated PNG-backed skin based on RetroSpy's `switch-pro-alt` Switch section and PNG dimensions.
+- `gamecube_tron_builtin`: generated PNG-backed skin based on RetroSpy's `gamecube-tron` skin and PNG dimensions.
 
 Future custom skin flow:
 

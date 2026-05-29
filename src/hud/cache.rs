@@ -53,6 +53,14 @@ impl HudCache {
             } => Some((layout_data, layout_kind, skin_name)),
         }
     }
+
+    fn layout_kind(&self) -> Option<HudLayoutKind> {
+        match *self {
+            HudCache::Empty => None,
+            HudCache::Resolved(resolved) => Some(resolved.layout_kind),
+            HudCache::Missing { layout_kind, .. } => Some(layout_kind),
+        }
+    }
 }
 
 struct HudVisualRuntime {
@@ -109,6 +117,10 @@ impl HudVisualRuntime {
             return;
         };
 
+        if let HudCache::Resolved(resolved) = self.caches[slot_index] {
+            hide_visual_skin_root(resolved.skin_root);
+        }
+
         match resolve_hud_skin(captured, skin) {
             Ok(resolved) => {
                 self.caches[slot_index] = HudCache::Resolved(resolved);
@@ -156,6 +168,7 @@ impl HudVisualRuntime {
             update_visual_skin_root_with_config(
                 resolved.skin_root,
                 resolved.layout_kind.overlay_config(training_mode),
+                skin,
             );
             for (pane, element) in resolved.panes[..resolved.pane_count]
                 .iter()
@@ -188,6 +201,14 @@ impl HudVisualRuntime {
     }
 
     fn available_slot_index(&self, layout_kind: HudLayoutKind) -> Option<usize> {
+        if let Some(slot_index) = self
+            .caches
+            .iter()
+            .position(|cache| cache.layout_kind() == Some(layout_kind))
+        {
+            return Some(slot_index);
+        }
+
         if let Some(slot_index) = self
             .caches
             .iter()

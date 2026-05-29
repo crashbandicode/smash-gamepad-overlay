@@ -38,7 +38,7 @@ pub(crate) struct ControllerSnapshot {
 }
 
 // `#[repr(u8)]` pins discriminants to 0..=N so the static assert below can
-// derive the variant count at compile time. 28 variants fits easily in a byte.
+// derive the variant count at compile time. These variants fit easily in a byte.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 pub(crate) enum ControlId {
@@ -74,15 +74,16 @@ pub(crate) enum ControlId {
     GcLTrigger,
     #[allow(dead_code)]
     GcRTrigger,
+    SkinBackground,
 }
 
-pub(crate) const LOGICAL_CONTROL_COUNT: usize = 28;
+pub(crate) const LOGICAL_CONTROL_COUNT: usize = 29;
 
 // Compile-time guard: bump LOGICAL_CONTROL_COUNT whenever a ControlId variant is
-// added or removed. The assertion uses GcRTrigger as the last variant so the
+// added or removed. The assertion uses SkinBackground as the last variant so the
 // build breaks immediately if the enum and the constant drift apart.
 const _: () = assert!(
-    LOGICAL_CONTROL_COUNT == ControlId::GcRTrigger as usize + 1,
+    LOGICAL_CONTROL_COUNT == ControlId::SkinBackground as usize + 1,
     "LOGICAL_CONTROL_COUNT is out of sync with the ControlId enum",
 );
 
@@ -169,8 +170,10 @@ impl ControllerViewState {
             ControlId::R3 => self.button_value(BUTTON_RSTICK),
             ControlId::Plus => self.button_value(BUTTON_PLUS),
             ControlId::Minus => self.button_value(BUTTON_MINUS),
-            // Home/Capture are represented in some skins but are not exposed as match input.
-            ControlId::Home | ControlId::Capture => ControlValue::NEUTRAL,
+            // Home/Capture/background are represented in some skins but are not exposed as match input.
+            ControlId::Home | ControlId::Capture | ControlId::SkinBackground => {
+                ControlValue::NEUTRAL
+            }
             ControlId::DpadUp => self.button_value(BUTTON_DUP),
             ControlId::DpadDown => self.button_value(BUTTON_DDOWN),
             ControlId::DpadLeft => self.button_value(BUTTON_DLEFT),

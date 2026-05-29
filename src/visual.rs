@@ -291,7 +291,7 @@ unsafe fn update_resolved_skin(
     skin: &BuiltInSkin,
     state: &ControllerViewState,
 ) {
-    update_visual_skin_root(resolved.skin_root);
+    update_visual_skin_root_with_config(resolved.skin_root, &OVERLAY_CONFIG, skin);
 
     for (pane, element) in resolved.panes[..resolved.pane_count]
         .iter()
@@ -325,17 +325,17 @@ unsafe fn find_named_pane(
     }
 }
 
-pub(crate) unsafe fn update_visual_skin_root(pane: *mut Pane) {
-    update_visual_skin_root_with_config(pane, &OVERLAY_CONFIG);
-}
-
-pub(crate) unsafe fn update_visual_skin_root_with_config(pane: *mut Pane, config: &OverlayConfig) {
+pub(crate) unsafe fn update_visual_skin_root_with_config(
+    pane: *mut Pane,
+    config: &OverlayConfig,
+    skin: &BuiltInSkin,
+) {
     (*pane).set_visible(true);
     (*pane).pos_x = config.x;
     (*pane).pos_y = config.y;
     (*pane).pos_z = 0.0;
-    (*pane).scale_x = config.scale;
-    (*pane).scale_y = config.scale;
+    (*pane).scale_x = config.scale * skin.root_scale;
+    (*pane).scale_y = config.scale * skin.root_scale;
     (*pane).alpha = config.opacity;
     (*pane).global_alpha = config.opacity;
     (*pane).flags |= 1 << PaneFlag::IsGlobalMatrixDirty as u8;
