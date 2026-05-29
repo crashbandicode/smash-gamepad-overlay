@@ -7,6 +7,7 @@ use crate::input::ControllerViewState;
 use crate::logger::trace;
 use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
 use crate::skin::{active_skin, BuiltInSkin};
+use crate::ui::find_pane_by_name;
 use crate::visual::{
     hide_visual_skin_pane, hide_visual_skin_root, update_visual_skin_pane,
     update_visual_skin_root_with_config, validate_skin_size, VisualRenderError,
@@ -161,6 +162,11 @@ impl HudVisualRuntime {
                 continue;
             };
 
+            if resolved.skin_name != skin.name {
+                *cache = HudCache::Resolved(resolved);
+                continue;
+            }
+
             if !resolved.is_valid(skin) {
                 hide_resolved_hud_skin(resolved);
                 *cache = HudCache::Empty;
@@ -196,27 +202,58 @@ impl HudVisualRuntime {
         for cache in &mut self.caches {
             match *cache {
                 HudCache::Resolved(resolved) if resolved.skin_name != skin.name => {
-                    hide_resolved_hud_skin(resolved);
-                    *cache = resolve_hud_cache_entry(
+                    match resolve_hud_skin_from_root(
                         CapturedHudLayout {
                             layout_data: resolved.layout_data,
                             kind: resolved.layout_kind,
                         },
                         skin,
-                    );
+                        resolved.skin_root,
+                    ) {
+                        Ok(new_resolved) => {
+                            hide_resolved_hud_panes(resolved);
+                            *cache = HudCache::Resolved(new_resolved);
+
+                            if !HUD_SKIN_SWAP_RESOLVED_LOGGED.swap(true, Ordering::Relaxed) {
+                                trace(&format!(
+                                    "non-draw HUD path swapped cached {} layout from skin '{}' to '{}'",
+                                    resolved.layout_kind.name(),
+                                    resolved.skin_name,
+                                    skin.name
+                                ));
+                            }
+                        }
+                        Err(error) => {
+                            log_skin_swap_miss(error, resolved.skin_name, skin.name);
+                        }
+                    }
                 }
                 HudCache::Missing {
                     layout_data,
                     layout_kind,
                     skin_name,
                 } if skin_name != skin.name => {
-                    *cache = resolve_hud_cache_entry(
-                        CapturedHudLayout {
-                            layout_data,
-                            kind: layout_kind,
-                        },
-                        skin,
-                    );
+                    let captured = CapturedHudLayout {
+                        layout_data,
+                        kind: layout_kind,
+                    };
+                    match resolve_hud_skin(captured, skin) {
+                        Ok(resolved) => {
+                            *cache = HudCache::Resolved(resolved);
+
+                            if !HUD_SKIN_SWAP_RESOLVED_LOGGED.swap(true, Ordering::Relaxed) {
+                                trace(&format!(
+                                    "non-draw HUD path resolved cached missing {} layout from skin '{}' to '{}'",
+                                    layout_kind.name(),
+                                    skin_name,
+                                    skin.name
+                                ));
+                            }
+                        }
+                        Err(error) => {
+                            log_skin_swap_miss(error, skin_name, skin.name);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -311,6 +348,7 @@ static HUD_CAPTURE_MISS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_LAYOUT_PATCH_PROBE_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_CACHE_FULL_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_SKIN_SWAP_RESOLVED_LOGGED: AtomicBool = AtomicBool::new(false);
+static HUD_SKIN_SWAP_MISS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static HUD_VISUAL_RUNTIME: HudVisualRuntimeCell =
     HudVisualRuntimeCell(UnsafeCell::new(HudVisualRuntime::new()));
@@ -337,10 +375,14 @@ pub(super) unsafe fn update_runtime(
 }
 
 unsafe fn hide_resolved_hud_skin(resolved: ResolvedHudSkin) {
+    hide_resolved_hud_panes(resolved);
+    hide_visual_skin_root(resolved.skin_root);
+}
+
+unsafe fn hide_resolved_hud_panes(resolved: ResolvedHudSkin) {
     for pane in &resolved.panes[..resolved.pane_count] {
         hide_visual_skin_pane(*pane);
     }
-    hide_visual_skin_root(resolved.skin_root);
 }
 
 unsafe fn resolve_hud_skin(
@@ -370,32 +412,34 @@ unsafe fn resolve_hud_skin(
     Ok(resolved)
 }
 
-unsafe fn resolve_hud_cache_entry(
+unsafe fn resolve_hud_skin_from_root(
     captured: CapturedHudLayout,
     skin: &'static BuiltInSkin,
-) -> HudCache {
-    match resolve_hud_skin(captured, skin) {
-        Ok(resolved) => {
-            if !HUD_SKIN_SWAP_RESOLVED_LOGGED.swap(true, Ordering::Relaxed) {
-                trace(&format!(
-                    "non-draw HUD path re-resolved cached {} layout for skin '{}'",
-                    captured.kind.name(),
-                    skin.name
-                ));
-            }
+    skin_root: *mut Pane,
+) -> Result<ResolvedHudSkin, VisualRenderError> {
+    validate_skin_size(skin)?;
 
-            HudCache::Resolved(resolved)
-        }
-        Err(error) => {
-            log_capture_miss(error);
-            log_layout_patch_probe(captured.layout_data, captured.kind.name(), skin);
-            HudCache::Missing {
-                layout_data: captured.layout_data,
-                layout_kind: captured.kind,
-                skin_name: skin.name,
-            }
-        }
+    if !pane_name_matches(skin_root, skin.root_pane_name) {
+        return Err(VisualRenderError::MissingSkinPane {
+            skin_name: skin.name,
+            pane_name: skin.root_pane_name,
+        });
     }
+
+    let mut resolved = ResolvedHudSkin::new(captured.layout_data, captured.kind, skin, skin_root);
+    for element in skin.elements.iter().take(MAX_RESOLVED_SKIN_ELEMENTS) {
+        let pane = find_pane_by_name(skin_root, element.pane_name);
+        if pane.is_null() {
+            return Err(VisualRenderError::MissingSkinPane {
+                skin_name: skin.name,
+                pane_name: element.pane_name,
+            });
+        }
+
+        resolved.push(pane);
+    }
+
+    Ok(resolved)
 }
 
 fn log_capture_miss(error: VisualRenderError) {
@@ -429,6 +473,34 @@ fn log_capture_miss(error: VisualRenderError) {
                 "non-draw HUD path cannot use skin '{skin_name}' because it has {element_count} elements; max supported is {max_elements}"
             ));
             trace("split the skin or raise MAX_RESOLVED_SKIN_ELEMENTS before activating it");
+        }
+    }
+}
+
+fn log_skin_swap_miss(
+    error: VisualRenderError,
+    previous_skin_name: &'static str,
+    requested_skin_name: &'static str,
+) {
+    if HUD_SKIN_SWAP_MISS_LOGGED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+
+    match error {
+        VisualRenderError::MissingSkinPane { pane_name, .. } => {
+            trace(&format!(
+                "non-draw HUD path could not swap cached skin '{previous_skin_name}' to '{requested_skin_name}' because pane '{}' was missing; keeping previous skin cache",
+                cstr_bytes_to_str(pane_name)
+            ));
+        }
+        VisualRenderError::SkinTooLarge {
+            element_count,
+            max_elements,
+            ..
+        } => {
+            trace(&format!(
+                "non-draw HUD path could not swap cached skin '{previous_skin_name}' to '{requested_skin_name}' because it has {element_count} elements; max supported is {max_elements}"
+            ));
         }
     }
 }
