@@ -214,7 +214,8 @@ controller family:
 
 If either default is missing or invalid, SGPO falls back to the generated Switch
 Pro or GameCube default for that family. The selected skin can change while a
-match is running if P1's controller family changes.
+match is running if P1's controller family changes. Config-file edits still
+reload only at startup and match start.
 
 Currently supported built-in skin names:
 
