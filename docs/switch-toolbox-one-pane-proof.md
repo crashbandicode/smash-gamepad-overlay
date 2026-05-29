@@ -286,3 +286,15 @@ sgpo_alt_face_a parent=sgpo_root alpha=0 pos=(431.5,137.5,0) size=(99,100)
 sgpo_alt_face_a material -> mat_sgpo_alt_face_a
 mat_sgpo_alt_face_a texture -> tex_sgpo_alt_face_a
 ```
+
+Generate the read-only proof diff report:
+
+```bash
+python tools/diff_one_pane_proof.py --fail-on-missing
+```
+
+The report is written to:
+
+```text
+target/layout-inspection/one-pane-proof-diff.md
+```

@@ -52,7 +52,7 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
   - `ControllerViewState`: maps `ControllerSnapshot` into pressed/released values plus normalized stick/trigger values.
   - `SkinElement`: maps a control to a pane name, optional source image/material names, base position, size, alpha/visibility/scale states, and optional x/y stick movement range.
   - Active built-in skin: `minimal_debug`.
-  - Inactive built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout as data only.
+  - Generated-asset built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout, includes the RetroSpy `background.png` shell as a static element, and uses a skin-specific root scale so it can be selected without resizing `minimal_debug`.
 - `ControlId` is `#[repr(u8)]`; a compile-time assertion keeps `LOGICAL_CONTROL_COUNT` synchronized with the enum.
 - Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match the selected built-in skin.
 - Active skins with more than `MAX_RESOLVED_SKIN_ELEMENTS` are rejected explicitly before pane resolution.
@@ -129,9 +129,17 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
   - `SGPO_EMU_LOG_PATH` can point at the emulator `sdmc/smash-gamepad-overlay.log` for quick reference.
   - Use `--no-emu` to force target-only staging, or `--skip-nro` for layout-only emulator staging.
 - Machine-specific emulator paths belong in the local ignored `.env`, not in git.
-- `tools/analyze_retrospy_skin.py` parses RetroSpy-style `skin.xml`, emits repo-safe dry-run manifest/report files under `target/`, and validates the generated manifest against `switch_pro_alt_builtin`.
+- `tools/analyze_retrospy_skin.py` parses RetroSpy-style `skin.xml`, emits repo-safe dry-run manifest/report files under `target/`, and validates the default Switch Pro manifest against `switch_pro_alt_builtin`. It can also generate other manifests without built-in validation; `gamecube_tron_builtin` currently uses the `gamecube` section and `sgpo_gct_*` pane names.
 - `tools/tests/test_analyze_retrospy_skin.py` covers the analyzer's Rust-source parsers with fixtures plus live-source backstops for `src/input.rs` and `src/skin.rs`.
-- Next converter work should stay narrow: prove one PNG-backed pane end to end before generating a full skin.
+- `tools/build_skin_layout.py` is the current end-to-end PNG-backed layout builder. It copies the patched square-pane baseline, runs the Rust `toolbox-cli layout-apply-manifest` and `layout-validate-manifest` commands, supports multiple `--skin MANIFEST::RETROSPY_SKIN_DIR` inputs, injects generated panes into the root plus both player-parts BFLYTs, forces generated panes to alpha `0` by default, packs `layout.arc`, stages an ARCropolis folder, and can write `config.json` selecting the active built-in skin to an emulator SD root. PNG imports default to BC7 sRGB; green chroma cleanup is limited to the Switch Pro background so green artwork in other skins is preserved.
+- `tools/sgpo_skin_tool.py` is the local install wrapper for the current release strategy: generate manifests, build a multi-skin layout, back up the installed layout/config/NRO, stage the generated ARCropolis layout to the configured SD root, and copy the rebuilt NRO. This keeps Nintendo layout assets and RetroSpy PNGs out of release artifacts while making hot-swap testing less manual.
+- The BNTX corruption bug was traced to Toolbox-Cli rebuilding `_DIC` in string-pool order instead of BRTI texture order. Fixed Toolbox-Cli commit: `b4fe9ec Fix BNTX _DIC rebuild to follow texture order, not string order`.
+- `tools/tweak_bflyt_material.py` is a narrow BFLYT helper for the one-pane proof. It can list materials, list `pic1`/`txt1` pane material bindings, verify a pane binding, rename a material slot, and rebind a pane to a material without changing section sizes.
+- `tools/diff_one_pane_proof.py` compares the current square-pane layout against `local-assets/proof/switch-pro-alt-one-pane/unpacked/` and writes `target/layout-inspection/one-pane-proof-diff.md`. It confirms the proof pane, material, `txl1` entry, pane-material binding, material texture reference, and BNTX texture-name presence, but does not decode or write BNTX texture payloads.
+- Current generated skins:
+  - `switch_pro_alt_builtin`: `sgpo_alt_*` panes from RetroSpy `switch-pro-alt`.
+  - `gamecube_tron_builtin`: `sgpo_gct_*` panes from RetroSpy `gamecube-tron`.
+- Runtime hot-swap is config-based: edit `sd:/ultimate/mods/smash-gamepad-overlay/config.json` and start a new match. The plugin still does not parse arbitrary skin manifests or PNGs at runtime.
 - Current custom pane tree:
   - `sgpo_root`
   - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`

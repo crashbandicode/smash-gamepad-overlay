@@ -34,6 +34,7 @@ DEFAULT_MANIFEST_DIR = Path("target/skin-build/switch-pro-alt")
 DEFAULT_DOTENV = Path(".env")
 GENERATED_SKIN_NAME = "switch_pro_alt_builtin"
 ROOT_PANE_NAME = "sgpo_root"
+DEFAULT_PANE_PREFIX = "sgpo_alt"
 EXPECTED_LAYOUT_FLAVOR = (
     "switch_pro_alt_builtin generated asset panes from the future skin converter"
 )
@@ -52,7 +53,15 @@ IMAGE_STICK_DEFAULTS = {
     "pressed_scale": 1.0,
 }
 
+IMAGE_STATIC_DEFAULTS = {
+    "released_alpha": 255,
+    "pressed_alpha": 255,
+    "released_scale": 1.0,
+    "pressed_scale": 1.0,
+}
+
 CONTROL_ORDER = [
+    "SkinBackground",
     "A",
     "B",
     "X",
@@ -114,6 +123,16 @@ SECTION_BUTTON_MAPS = {
         "start": "Plus",
         "back": "Minus",
     },
+    "gamecube": {
+        "a": "A",
+        "b": "B",
+        "x": "X",
+        "y": "Y",
+        "z": "ZR",
+        "l": "GcLTrigger",
+        "r": "GcRTrigger",
+        "start": "Plus",
+    },
 }
 
 GLOBAL_BUTTON_MAP = {
@@ -126,9 +145,10 @@ GLOBAL_BUTTON_MAP = {
 STICK_MAP = {
     ("lstick_x", "lstick_y"): "LeftStickDot",
     ("rstick_x", "rstick_y"): "RightStickDot",
+    ("cstick_x", "cstick_y"): "RightStickDot",
 }
 
-RUNTIME_NEUTRAL_CONTROLS = {"Home", "Capture"}
+RUNTIME_NEUTRAL_CONTROLS = {"Home", "Capture", "SkinBackground"}
 FLOAT_RE = r"[-+]?\d+(?:\.\d+)?"
 
 
@@ -188,11 +208,23 @@ def main() -> int:
         )
     metadata, controls = parse_skin(skin_xml, args.section)
     control_ids = parse_control_ids(args.input_rs)
-    builtin = parse_switch_pro_alt_builtin(args.skin_rs)
-    manifest = build_manifest(skin_xml, args.section, metadata, controls, builtin)
-    manifest_validation_errors = validate_manifest_against_builtin(
-        manifest["elements"], builtin
+    builtin = [] if args.skip_builtin_validation else parse_switch_pro_alt_builtin(args.skin_rs)
+    manifest = build_manifest(
+        skin_xml=skin_xml,
+        section=args.section,
+        metadata=metadata,
+        controls=controls,
+        builtin=builtin,
+        skin_name=args.skin_name,
+        expected_layout_flavor=args.expected_layout_flavor,
+        pane_prefix=args.pane_prefix,
     )
+    manifest_validation_errors = (
+        []
+        if args.skip_builtin_validation
+        else validate_manifest_against_builtin(manifest["elements"], builtin)
+    )
+    manifest["validation_skipped"] = args.skip_builtin_validation
 
     report = build_report(
         skin_xml=skin_xml,
@@ -205,6 +237,8 @@ def main() -> int:
         manifest=manifest,
         manifest_dir=args.manifest_dir,
         manifest_validation_errors=manifest_validation_errors,
+        pane_prefix=args.pane_prefix,
+        validation_skipped=args.skip_builtin_validation,
     )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -220,13 +254,19 @@ def main() -> int:
         f"Parsed {len(controls)} controls ({len(mapped)} mapped, "
         f"{len(unmapped)} unsupported/unmapped) from {skin_xml}"
     )
-    print(f"Compared against {len(builtin)} switch_pro_alt_builtin elements")
+    if args.skip_builtin_validation:
+        print("Skipped built-in validation")
+    else:
+        print(f"Compared against {len(builtin)} switch_pro_alt_builtin elements")
     if manifest_validation_errors:
         print("Generated manifest does not match switch_pro_alt_builtin:")
         for error in manifest_validation_errors:
             print(f"  - {error}")
         return 1
-    print("Generated manifest exactly matches switch_pro_alt_builtin")
+    if args.skip_builtin_validation:
+        print("Generated manifest without built-in comparison")
+    else:
+        print("Generated manifest exactly matches switch_pro_alt_builtin")
     return 0
 
 
@@ -253,6 +293,27 @@ def parse_args() -> argparse.Namespace:
         "--section",
         default="switch",
         help="RetroSpy <section type=...> to analyze (default: switch)",
+    )
+    parser.add_argument(
+        "--skin-name",
+        default=GENERATED_SKIN_NAME,
+        help=f"Generated SGPO built-in/runtime skin name (default: {GENERATED_SKIN_NAME})",
+    )
+    parser.add_argument(
+        "--pane-prefix",
+        default=DEFAULT_PANE_PREFIX,
+        help=f"Pane-name prefix for controls without a built-in match (default: {DEFAULT_PANE_PREFIX})",
+    )
+    parser.add_argument(
+        "--expected-layout-flavor",
+        default=EXPECTED_LAYOUT_FLAVOR,
+        help="Expected layout flavor string written into the generated manifest.",
+    )
+    parser.add_argument(
+        "--skip-built-in-validation",
+        dest="skip_builtin_validation",
+        action="store_true",
+        help="Generate a manifest without comparing it to switch_pro_alt_builtin.",
     )
     parser.add_argument(
         "--input-rs",
@@ -315,7 +376,21 @@ def parse_skin(skin_xml: Path, selected_section: str) -> tuple[SkinMetadata, lis
         background_height=background_height,
     )
 
-    controls: list[ParsedControl] = []
+    controls: list[ParsedControl] = [
+        ParsedControl(
+            kind="background",
+            section="skin",
+            retrospy_name=background.get("name", "background") if background is not None else "",
+            control_id="SkinBackground",
+            image=background_image,
+            x=0.0,
+            y=0.0,
+            width=float(background_width),
+            height=float(background_height),
+            base_x=0.0,
+            base_y=0.0,
+        )
+    ]
     section = find_section(root, selected_section)
     if section is not None:
         section_map = SECTION_BUTTON_MAPS.get(selected_section, {})
@@ -330,12 +405,15 @@ def parse_skin(skin_xml: Path, selected_section: str) -> tuple[SkinMetadata, lis
                 )
             )
 
+    root_button_map = SECTION_BUTTON_MAPS.get(selected_section, {})
     for button in root.findall("button"):
+        button_name = button.get("name", "")
         controls.append(
             parsed_button(
                 button,
                 section="global",
-                control_id=GLOBAL_BUTTON_MAP.get(button.get("name", "")),
+                control_id=GLOBAL_BUTTON_MAP.get(button_name)
+                or root_button_map.get(button_name),
                 background_width=background_width,
                 background_height=background_height,
             )
@@ -508,9 +586,42 @@ def parse_switch_pro_alt_builtin(skin_rs: Path) -> list[BuiltInElement]:
     body = text[body_start:body_end]
 
     elements: list[BuiltInElement] = []
+    elements.extend(parse_builtin_static(body))
     elements.extend(parse_builtin_buttons(body))
     elements.extend(parse_builtin_sticks(body))
     return elements
+
+
+def parse_builtin_static(body: str) -> list[BuiltInElement]:
+    pattern = re.compile(
+        rf"""image_static\(
+            \s*ControlId::(?P<control>\w+),
+            \s*b"(?P<pane>[^"]+)\\0",
+            \s*"(?P<image>[^"]+)",
+            \s*(?P<base_x>{FLOAT_RE}),
+            \s*(?P<base_y>{FLOAT_RE}),
+            \s*(?P<width>{FLOAT_RE}),
+            \s*(?P<height>{FLOAT_RE}),
+            \s*\)""",
+        flags=re.S | re.X,
+    )
+    return [
+        BuiltInElement(
+            control_id=match.group("control"),
+            pane_name=match.group("pane"),
+            image=match.group("image"),
+            material_name=material_name(match.group("pane")),
+            base_x=float(match.group("base_x")),
+            base_y=float(match.group("base_y")),
+            width=float(match.group("width")),
+            height=float(match.group("height")),
+            released_alpha=IMAGE_STATIC_DEFAULTS["released_alpha"],
+            pressed_alpha=IMAGE_STATIC_DEFAULTS["pressed_alpha"],
+            released_scale=IMAGE_STATIC_DEFAULTS["released_scale"],
+            pressed_scale=IMAGE_STATIC_DEFAULTS["pressed_scale"],
+        )
+        for match in pattern.finditer(body)
+    ]
 
 
 def parse_builtin_buttons(body: str) -> list[BuiltInElement]:
@@ -587,6 +698,9 @@ def build_manifest(
     metadata: SkinMetadata,
     controls: list[ParsedControl],
     builtin: list[BuiltInElement],
+    skin_name: str = GENERATED_SKIN_NAME,
+    expected_layout_flavor: str = EXPECTED_LAYOUT_FLAVOR,
+    pane_prefix: str = DEFAULT_PANE_PREFIX,
 ) -> dict:
     builtin_by_control = {element.control_id: element for element in builtin}
     mapped = sorted(
@@ -596,9 +710,9 @@ def build_manifest(
 
     return {
         "schema_version": 1,
-        "skin_name": GENERATED_SKIN_NAME,
+        "skin_name": skin_name,
         "root_pane_name": ROOT_PANE_NAME,
-        "expected_layout_flavor": EXPECTED_LAYOUT_FLAVOR,
+        "expected_layout_flavor": expected_layout_flavor,
         "source": {
             "skin_xml": str(skin_xml),
             "retrospy_skin_name": metadata.name,
@@ -615,11 +729,16 @@ def build_manifest(
             "base_y_formula": "background_height / 2 - (y + height / 2)",
         },
         "defaults": {
+            "image_static": IMAGE_STATIC_DEFAULTS,
             "image_button": IMAGE_BUTTON_DEFAULTS,
             "image_stick": IMAGE_STICK_DEFAULTS,
         },
         "elements": [
-            manifest_element(control, builtin_by_control.get(control.control_id or ""))
+            manifest_element(
+                control,
+                builtin_by_control.get(control.control_id or ""),
+                pane_prefix=pane_prefix,
+            )
             for control in mapped
         ],
     }
@@ -628,9 +747,19 @@ def build_manifest(
 def manifest_element(
     control: ParsedControl,
     builtin_element: BuiltInElement | None,
+    pane_prefix: str = DEFAULT_PANE_PREFIX,
 ) -> dict:
-    pane_name = builtin_element.pane_name if builtin_element else suggested_pane_name(control)
-    defaults = IMAGE_STICK_DEFAULTS if control.kind == "stick" else IMAGE_BUTTON_DEFAULTS
+    pane_name = (
+        builtin_element.pane_name
+        if builtin_element
+        else suggested_pane_name(control, pane_prefix)
+    )
+    if control.kind == "stick":
+        defaults = IMAGE_STICK_DEFAULTS
+    elif control.kind == "background":
+        defaults = IMAGE_STATIC_DEFAULTS
+    else:
+        defaults = IMAGE_BUTTON_DEFAULTS
     return {
         "control_id": control.control_id,
         "pane_name": pane_name,
@@ -696,7 +825,9 @@ def build_manifest_markdown(manifest: dict, validation_errors: list[str]) -> str
 
     lines.append("## Validation")
     lines.append("")
-    if validation_errors:
+    if manifest.get("validation_skipped"):
+        lines.append("- Built-in validation skipped for this generated skin.")
+    elif validation_errors:
         for error in validation_errors:
             lines.append(f"- Mismatch: {error}")
     else:
@@ -824,6 +955,8 @@ def build_report(
     manifest: dict,
     manifest_dir: Path,
     manifest_validation_errors: list[str],
+    pane_prefix: str = DEFAULT_PANE_PREFIX,
+    validation_skipped: bool = False,
 ) -> str:
     mapped = [control for control in controls if control.control_id]
     unmapped = [control for control in controls if not control.control_id]
@@ -840,7 +973,7 @@ def build_report(
     runtime_neutral = sorted_controls(parsed_controls & RUNTIME_NEUTRAL_CONTROLS)
 
     lines: list[str] = []
-    lines.append("# RetroSpy Skin Analysis: switch-pro-alt")
+    lines.append(f"# RetroSpy Skin Analysis: {manifest['skin_name']}")
     lines.append("")
     lines.append("Generated by `tools/analyze_retrospy_skin.py`.")
     lines.append("")
@@ -855,7 +988,10 @@ def build_report(
         f"- Background: `{metadata.background_image}` "
         f"({metadata.background_width}x{metadata.background_height})"
     )
-    lines.append(f"- Built-in target parsed from: `{skin_rs}`")
+    if validation_skipped:
+        lines.append("- Built-in target parsed from: `validation skipped`")
+    else:
+        lines.append(f"- Built-in target parsed from: `{skin_rs}`")
     lines.append(f"- Dry-run manifest JSON: `{manifest_dir / 'skin_manifest.json'}`")
     lines.append(f"- Dry-run manifest Markdown: `{manifest_dir / 'skin_manifest.md'}`")
     lines.append("")
@@ -919,7 +1055,7 @@ def build_report(
     lines.append("## Model And Built-In Skin Comparison")
     lines.append("")
     lines.append(f"- Parsed mapped controls: {len(mapped)}")
-    lines.append(f"- `switch_pro_alt_builtin` elements: {len(builtin)}")
+    lines.append(f"- Built-in comparison elements: {len(builtin)}")
     lines.append(f"- Current `ControlId` variants: {len(control_ids)}")
     lines.append(
         "- Parsed controls missing from built-in: "
@@ -949,11 +1085,18 @@ def build_report(
             )
         lines.append("")
     else:
-        lines.append(
-            "No field mismatches: parsed image names, centered coordinates, sizes, and stick ranges match `switch_pro_alt_builtin`."
-        )
+        if validation_skipped:
+            lines.append(
+                "Built-in field comparison skipped; parsed image names, centered coordinates, sizes, and stick ranges were not compared to Rust skin data."
+            )
+        else:
+            lines.append(
+                "No field mismatches: parsed image names, centered coordinates, sizes, and stick ranges match `switch_pro_alt_builtin`."
+            )
         lines.append("")
-    if manifest_validation_errors:
+    if validation_skipped:
+        lines.append("Generated manifest validation skipped.")
+    elif manifest_validation_errors:
         lines.append("Generated manifest validation errors:")
         lines.append("")
         for error in manifest_validation_errors:
@@ -975,7 +1118,9 @@ def build_report(
     lines.append(
         "- Coordinate transform used here: `base_x = x + width / 2 - background_width / 2`; `base_y = background_height / 2 - (y + height / 2)`"
     )
-    lines.append("- Suggested pane names use existing `switch_pro_alt_builtin` names when present.")
+    lines.append(
+        f"- Suggested pane names use existing built-in names when present; otherwise they use `{pane_prefix}_*`."
+    )
     lines.append("")
     lines.append(
         "| ControlId | Suggested pane | Image asset | Material | Base x/y | Size | Stick movement |"
@@ -983,7 +1128,11 @@ def build_report(
     lines.append("| --- | --- | --- | --- | --- | --- | --- |")
     for control in sorted(mapped, key=lambda item: control_sort_key(item.control_id or "")):
         builtin_element = builtin_by_control.get(control.control_id or "")
-        pane = builtin_element.pane_name if builtin_element else suggested_pane_name(control)
+        pane = (
+            builtin_element.pane_name
+            if builtin_element
+            else suggested_pane_name(control, pane_prefix)
+        )
         material = f"mat_{pane}"
         lines.append(
             "| "
@@ -1088,9 +1237,22 @@ def control_sort_key(control_id: str) -> tuple[int, str]:
         return len(CONTROL_ORDER), control_id
 
 
-def suggested_pane_name(control: ParsedControl) -> str:
-    suffix = re.sub(r"[^a-z0-9]+", "_", (control.control_id or control.retrospy_name).lower())
-    return f"sgpo_alt_{suffix}"
+def suggested_pane_name(
+    control: ParsedControl,
+    pane_prefix: str = DEFAULT_PANE_PREFIX,
+) -> str:
+    if control.kind == "background":
+        suffix = "background"
+    else:
+        suffix = control_suffix(control.control_id or control.retrospy_name)
+    return f"{pane_prefix}_{suffix}"
+
+
+def control_suffix(value: str) -> str:
+    text = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", value)
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", text)
+    text = re.sub(r"[^A-Za-z0-9]+", "_", text)
+    return text.lower().strip("_")
 
 
 def material_name(pane_name: str) -> str:
