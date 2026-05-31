@@ -1,9 +1,9 @@
 use skyline::nn::hid;
 
 use crate::config::{
-    NPAD_ID_HANDHELD, NPAD_ID_NO1, NPAD_STYLE_FULL_KEY, NPAD_STYLE_GAMECUBE, NPAD_STYLE_HANDHELD,
-    NPAD_STYLE_JOY_DUAL, NPAD_STYLE_JOY_LEFT, NPAD_STYLE_JOY_RIGHT, STICK_AXIS_MAX,
-    VISUAL_TRIGGER_ACTIVE_THRESHOLD,
+    GC_TRIGGER_AXIS_MAX, NPAD_ID_HANDHELD, NPAD_ID_NO1, NPAD_STYLE_FULL_KEY, NPAD_STYLE_GAMECUBE,
+    NPAD_STYLE_HANDHELD, NPAD_STYLE_JOY_DUAL, NPAD_STYLE_JOY_LEFT, NPAD_STYLE_JOY_RIGHT,
+    STICK_AXIS_MAX, VISUAL_TRIGGER_ACTIVE_THRESHOLD,
 };
 
 const BUTTON_A: u64 = 1 << 0;
@@ -362,7 +362,7 @@ fn normalize_stick_axis(value: i32) -> f32 {
 }
 
 fn normalize_trigger(value: u32) -> f32 {
-    (value as f32 / 255.0).clamp(0.0, 1.0)
+    (value as f32 / GC_TRIGGER_AXIS_MAX).clamp(0.0, 1.0)
 }
 
 fn stick_value(stick: (f32, f32)) -> ControlValue {
