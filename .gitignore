@@ -1,5 +1,7 @@
 # Rust / cargo-skyline build output
 /target/
+/tools/extract_info_melee_layout/
+/tools/sgpo_installer/target/
 
 # Skyline artifacts copied outside target
 *.nro
@@ -17,6 +19,7 @@
 # Local game dumps and extracted binary assets
 /data.arc
 /local-assets/
+/local-checkouts/
 
 # Python helper caches
 __pycache__/

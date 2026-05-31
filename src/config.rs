@@ -49,7 +49,8 @@ pub(crate) const TEXT_SCAN_ALIGNMENT: usize = 4;
 pub(crate) const DEBUG_TEXT_LINE_COUNT: usize = 4;
 pub(crate) const MAX_OVERLAY_TEXT_PANES: usize = 24;
 pub(crate) const STICK_AXIS_MAX: f32 = 32767.0;
-pub(crate) const VISUAL_TRIGGER_ACTIVE_THRESHOLD: u32 = 25;
+pub(crate) const GC_TRIGGER_AXIS_MAX: f32 = STICK_AXIS_MAX;
+pub(crate) const VISUAL_TRIGGER_ACTIVE_THRESHOLD: u32 = 3200;
 
 pub(crate) const P1_PARTS_PANE_NAME: &[u8] = b"p1\0";
 

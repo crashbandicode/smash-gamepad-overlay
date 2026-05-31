@@ -1,9 +1,13 @@
 # Rust Layout CLI Requirements For SGPO
 
-This document describes the Rust layout/BNTX/BFLYT CLI functionality that would
-unblock the Smash Gamepad Overlay custom-skin converter. The intent is to port
-the needed Switch Toolbox-style asset logic into a maintained Rust tool that can
-live alongside SGPO and be licensed under MIT where our own code permits it.
+This is the historical requirements document that guided the Rust Toolbox-Cli
+work. The core SGPO path now uses `nx-layout-toolbox` as a library through a
+local checkout at `local-checkouts/Toolbox-Cli`; keep this document as a
+feature checklist and reference for future toolbox regressions.
+
+The original intent was to port the needed Switch Toolbox-style asset logic
+into a maintained Rust tool that can live alongside SGPO and be licensed under
+MIT where our own code permits it.
 
 The goal is not to move runtime logic into the CLI. SGPO should remain a simple
 in-game Skyline plugin that polls input and updates already-existing named UI
@@ -16,9 +20,10 @@ SGPO currently has:
 
 - a working square-pane overlay in patched `info_melee/layout.arc`;
 - a RetroSpy dry-run analyzer that emits a skin manifest;
-- a manual one-pane PNG proof for `sgpo_alt_face_a`;
-- a Python BFLYT helper for inspection/material rename/pane material binding;
-- no reliable automated BNTX texture import yet.
+- generated PNG-backed Switch Pro and GameCube preset skins;
+- a Rust installer that applies manifests, imports PNGs into BNTX, validates
+  generated panes/materials/textures, and stages the final layout/NRO/config;
+- legacy Python helpers for inspection and reference comparison.
 
 The CLI should let SGPO convert a RetroSpy-style skin into local ignored Smash
 layout assets without using the Switch Toolbox GUI or depending on the

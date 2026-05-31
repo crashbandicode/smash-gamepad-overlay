@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build and optionally stage a PNG-backed SGPO skin layout with toolbox-cli."""
+"""Legacy/reference PNG-backed SGPO skin layout builder using toolbox-cli."""
 
 from __future__ import annotations
 
@@ -10,26 +10,29 @@ import os
 import shutil
 import subprocess
 import struct
+import sys
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
 
 
 DEFAULT_BASE_UNPACKED = Path("local-assets/modified/info_melee/unpacked")
-DEFAULT_OUTPUT_DIR = Path("local-assets/generated/switch-pro-alt")
+DEFAULT_OUTPUT_DIR = Path("local-assets/generated/sgpo-layout")
 DEFAULT_MANIFEST = Path("target/skin-build/switch-pro-alt/skin_manifest.json")
 DEFAULT_SKIN_DIR = Path("/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt")
 DEFAULT_TOOLBOX_CLI = Path("/tmp/toolbox-cli-review/target/release/toolbox-cli")
 TOOLBOX_CLI_CANDIDATES = (
     DEFAULT_TOOLBOX_CLI,
+    Path("local-checkouts/Toolbox-Cli/target/release/toolbox-cli"),
+    Path("local-checkouts/Toolbox-Cli/target/debug/toolbox-cli"),
     Path("/home/intpa/Toolbox-Cli/target/release/toolbox-cli"),
     Path("/home/intpa/Toolbox-Cli/target/debug/toolbox-cli"),
 )
 ARCPOLIS_LAYOUT_PATH = Path("ui/layout/info/info_melee/info_melee/layout.arc")
 MOD_FOLDER_NAME = "smash-gamepad-overlay"
 ACTIVE_SKIN_NAME = "auto"
-DEFAULT_SWITCH_SKIN_NAME = "switch_pro_alt_builtin"
-DEFAULT_GAMECUBE_SKIN_NAME = "gamecube_tron_builtin"
+DEFAULT_SWITCH_SKIN_NAME = "default_simple"
+DEFAULT_GAMECUBE_SKIN_NAME = "default_simple_gamecube"
 ROOT_BFLYT = Path("blyt/info_melee.bflyt")
 PLAYER_PARTS_BFLYTS = (
     Path("blyt/info_melee_lct_player_00.bflyt"),
@@ -72,7 +75,7 @@ def resolve_toolbox_cli(arg: str | None) -> str:
 
 
 def run(command: list[str]) -> None:
-    print("+ " + " ".join(quote_arg(part) for part in command))
+    print("+ " + " ".join(quote_arg(part) for part in command), flush=True)
     subprocess.run(command, check=True)
 
 
@@ -308,14 +311,19 @@ def png_chunk(chunk_type: bytes, data: bytes) -> bytes:
     return struct.pack(">I", len(data)) + chunk_type + data + struct.pack(">I", crc)
 
 
-def write_skin_config(mod_root: Path, active_skin: str) -> Path:
+def write_skin_config(
+    mod_root: Path,
+    active_skin: str,
+    default_switch_skin: str,
+    default_gamecube_skin: str,
+) -> Path:
     config_path = mod_root / "config.json"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config = {
         "active_skin": active_skin,
         "default_skins": {
-            "switch": DEFAULT_SWITCH_SKIN_NAME,
-            "gamecube": DEFAULT_GAMECUBE_SKIN_NAME,
+            "switch": default_switch_skin,
+            "gamecube": default_gamecube_skin,
         },
     }
     config_path.write_text(json.dumps(config, indent=2) + "\n")
@@ -339,7 +347,7 @@ def parse_skin_spec(value: str) -> SkinSpec:
 def default_skin_specs(args: argparse.Namespace) -> list[SkinSpec]:
     if args.skin:
         return [parse_skin_spec(value) for value in args.skin]
-    return [SkinSpec(args.manifest, args.skin_dir)]
+    return []
 
 
 def texture_name_for_pane(pane_name: str) -> str:
@@ -360,6 +368,23 @@ def hide_generated_panes(toolbox_cli: str, bflyt: Path, elements: list[dict]) ->
                 "0",
             ]
         )
+
+
+def pack_layout(toolbox_cli: str | None, output_unpacked: Path, output_layout: Path) -> None:
+    if toolbox_cli:
+        run([toolbox_cli, "sarc-pack", "--input", str(output_unpacked), "--out", str(output_layout)])
+        return
+
+    run([
+        sys.executable,
+        "-m",
+        "sarc",
+        "create",
+        "--base-path",
+        str(output_unpacked),
+        str(output_unpacked),
+        str(output_layout),
+    ])
 
 
 def add_manifest_panes_to_bflyt(
@@ -473,22 +498,24 @@ def main() -> None:
     parser.add_argument("--no-stage-target", action="store_true")
     parser.add_argument("--write-config", action="store_true")
     parser.add_argument("--active-skin", default=ACTIVE_SKIN_NAME)
+    parser.add_argument("--default-switch-skin", default=DEFAULT_SWITCH_SKIN_NAME)
+    parser.add_argument("--default-gamecube-skin", default=DEFAULT_GAMECUBE_SKIN_NAME)
     parser.add_argument("--force", action="store_true", help="replace existing output directory")
     args = parser.parse_args()
 
     load_dotenv(args.env_file)
 
-    toolbox_cli = resolve_toolbox_cli(args.toolbox_cli)
     base_unpacked = args.base_unpacked
     output_dir = args.output_dir
     output_unpacked = output_dir / "unpacked"
     output_layout = output_dir / "layout.arc"
+    skin_specs = default_skin_specs(args)
+    toolbox_cli = resolve_toolbox_cli(args.toolbox_cli) if skin_specs else None
 
     require_path(base_unpacked / ROOT_BFLYT, "base root BFLYT")
     for bflyt in PLAYER_PARTS_BFLYTS:
         require_path(base_unpacked / bflyt, "base player-parts BFLYT")
     require_path(base_unpacked / "timg" / "__Combined.bntx", "base BNTX")
-    skin_specs = default_skin_specs(args)
     for spec in skin_specs:
         require_path(spec.manifest, "skin manifest")
         require_path(spec.skin_dir / "skin.xml", "RetroSpy skin.xml")
@@ -560,7 +587,7 @@ def main() -> None:
 
     if output_layout.exists():
         output_layout.unlink()
-    run([toolbox_cli, "sarc-pack", "--input", str(output_unpacked), "--out", str(output_layout)])
+    pack_layout(toolbox_cli, output_unpacked, output_layout)
 
     if not args.no_stage_target:
         staged_layout = copy_layout(output_layout, args.stage_target)
@@ -571,7 +598,12 @@ def main() -> None:
         sd_layout = copy_layout(output_layout, sd_mod_root)
         print(f"staged SD layout -> {sd_layout}")
         if args.write_config:
-            config_path = write_skin_config(sd_mod_root, args.active_skin)
+            config_path = write_skin_config(
+                sd_mod_root,
+                args.active_skin,
+                args.default_switch_skin,
+                args.default_gamecube_skin,
+            )
             print(f"wrote SD skin config -> {config_path}")
 
     print(f"built layout -> {output_layout}")

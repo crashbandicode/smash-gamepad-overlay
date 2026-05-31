@@ -30,7 +30,8 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
 - Has two display modes:
   - `DebugText`: original compact troubleshooting text.
   - `Visual`: skin-driven generic pane renderer.
-- `Visual` targets the active `minimal_debug` square pane skin under `sgpo_root`.
+- `Visual` targets the active `default_simple` square pane skin under `sgpo_root` by default.
+- `default_simple_gamecube` is a matching no-PNG GameCube subset that reuses the same `sgpo_pro_*` panes while omitting controls the GameCube controller does not have.
 - The modified match layout provides 24 child `sgpo_pro_*` picture panes for face buttons, shoulders/triggers, stick clicks, plus/minus, d-pad cardinals/diagonals, stick gates, and stick dots.
 - `sgpo_pro_a_marker` keeps the previously tested A-button pane name.
 - Pressed buttons dim/brighten and scale; stick dots move from normalized stick positions.
@@ -51,12 +52,13 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
   - `ControlId`: logical controls/buttons/sticks/triggers.
   - `ControllerViewState`: maps `ControllerSnapshot` into pressed/released values plus normalized stick/trigger values.
   - `SkinElement`: maps a control to a pane name, optional source image/material names, base position, size, alpha/visibility/scale states, and optional x/y stick movement range.
-  - Active built-in skin: `minimal_debug`.
-  - Generated-asset built-in skin target: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout, includes the RetroSpy `background.png` shell as a static element, and uses a skin-specific root scale so it can be selected without resizing `minimal_debug`.
+  - Active built-in no-asset skins: `default_simple` and `default_simple_gamecube`.
+  - `minimal_debug` remains accepted as a compatibility alias for `default_simple`.
+  - Generated-asset built-in skin targets: `switch_pro_alt_builtin`, which mirrors the RetroSpy `switch-pro-alt` Switch layout, includes the RetroSpy `background.png` shell as a static element, and uses a skin-specific root scale; and `gamecube_tron_builtin`, which mirrors the RetroSpy `gamecube-tron` layout.
 - `ControlId` is `#[repr(u8)]`; a compile-time assertion keeps `LOGICAL_CONTROL_COUNT` synchronized with the enum.
 - Skin/layout mismatch logging reports the active skin, first missing pane, expected layout flavor, and the regeneration/staging commands when patched panes do not match the selected built-in skin.
 - Active skins with more than `MAX_RESOLVED_SKIN_ELEMENTS` are rejected explicitly before pane resolution.
-- Runtime skin selection reads `sd:/ultimate/mods/smash-gamepad-overlay/config.json` at startup and on match start. The config currently selects a built-in skin by name (`minimal_debug` by default). Missing/invalid config falls back to `minimal_debug`; arbitrary generated manifest elements are not loaded by the plugin yet.
+- Runtime skin selection reads `sd:/ultimate/mods/smash-gamepad-overlay/config.json` at startup and on match start. The config selects a built-in skin by name or `active_skin: "auto"` with `default_skins.switch` and `default_skins.gamecube`. Missing/invalid config falls back to `default_simple`; arbitrary generated manifest elements are not loaded by the plugin yet.
 - Custom-skin direction:
   - the plugin should not parse arbitrary PNGs or construct complete visual assets at runtime;
   - a future PC-side converter should read RetroSpy-style `skin.xml` plus PNG assets;
@@ -131,16 +133,20 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
 - Machine-specific emulator paths belong in the local ignored `.env`, not in git.
 - `tools/analyze_retrospy_skin.py` parses RetroSpy-style `skin.xml`, emits repo-safe dry-run manifest/report files under `target/`, and validates the default Switch Pro manifest against `switch_pro_alt_builtin`. It can also generate other manifests without built-in validation; `gamecube_tron_builtin` currently uses the `gamecube` section and `sgpo_gct_*` pane names.
 - `tools/tests/test_analyze_retrospy_skin.py` covers the analyzer's Rust-source parsers with fixtures plus live-source backstops for `src/input.rs` and `src/skin.rs`.
-- `tools/build_skin_layout.py` is the current end-to-end PNG-backed layout builder. It copies the patched square-pane baseline, runs the Rust `toolbox-cli layout-apply-manifest` and `layout-validate-manifest` commands, supports multiple `--skin MANIFEST::RETROSPY_SKIN_DIR` inputs, injects generated panes into the root plus both player-parts BFLYTs, forces generated panes to alpha `0` by default, packs `layout.arc`, stages an ARCropolis folder, and can write `config.json` selecting the active built-in skin to an emulator SD root. PNG imports default to BC7 sRGB; green chroma cleanup is limited to the Switch Pro background so green artwork in other skins is preserved.
-- `tools/sgpo_skin_tool.py` is the local install wrapper for the current release strategy: generate manifests, build a multi-skin layout, back up the installed layout/config/NRO, stage the generated ARCropolis layout to the configured SD root, and copy the rebuilt NRO. This keeps Nintendo layout assets and RetroSpy PNGs out of release artifacts while making hot-swap testing less manual. Its default config is now `active_skin: "auto"`.
+- `tools/sgpo_installer/` is the preferred Rust user-facing installer. It accepts a user-owned `data.arc` or extracted `info_melee/layout.arc`, prepares the patched square-pane baseline, optionally parses RetroSpy preset skins, uses `nx-layout-toolbox` as a library to generate PNG-backed panes/textures/materials, validates generated panes, builds/stages `layout.arc`, writes config, backs up installed layout/config/NRO, and copies the NRO. It also supports `--sd-zip <path>` plus `--no-sd-stage` to build an SD-root archive containing the NRO, ARCropolis layout, and config. With no `--include-skin`, it installs only the no-PNG `default_simple` skins. Texture import defaults to known-good `bc7-srgb`; `--texture-format rgba8-srgb` can be used for uncompressed texture quality tests, though it did not materially improve the tested `switch-pro-alt` lettering. Current local dependency path points at `local-checkouts/Toolbox-Cli`; update it to a crates.io dependency after `nx-layout-toolbox` is published.
+- `tools/build_skin_layout.py` remains as the legacy/reference Python implementation of the PNG-backed layout build. Keep it around for comparison while the Rust installer is hardened.
+- `tools/sgpo_skin_tool.py` remains as a compatibility wrapper for older commands; it now forwards arguments to the Rust installer.
+- `docs/release-bundle-strategy.md` records the intended release shape: ship the NRO plus PC-side tooling, require user-owned `data.arc`, and optionally accept RetroSpy skin folders.
 - The BNTX corruption bug was traced to Toolbox-Cli rebuilding `_DIC` in string-pool order instead of BRTI texture order. Fixed Toolbox-Cli commit: `b4fe9ec Fix BNTX _DIC rebuild to follow texture order, not string order`.
 - `tools/tweak_bflyt_material.py` is a narrow BFLYT helper for the one-pane proof. It can list materials, list `pic1`/`txt1` pane material bindings, verify a pane binding, rename a material slot, and rebind a pane to a material without changing section sizes.
 - `tools/diff_one_pane_proof.py` compares the current square-pane layout against `local-assets/proof/switch-pro-alt-one-pane/unpacked/` and writes `target/layout-inspection/one-pane-proof-diff.md`. It confirms the proof pane, material, `txl1` entry, pane-material binding, material texture reference, and BNTX texture-name presence, but does not decode or write BNTX texture payloads.
 - Current generated skins:
+  - `default_simple`: `sgpo_pro_*` square panes, Switch-family controls.
+  - `default_simple_gamecube`: `sgpo_pro_*` square panes, GameCube subset.
   - `switch_pro_alt_builtin`: `sgpo_alt_*` panes from RetroSpy `switch-pro-alt`.
   - `gamecube_tron_builtin`: `sgpo_gct_*` panes from RetroSpy `gamecube-tron`.
 - Config hot-swap is match-start based: edit `sd:/ultimate/mods/smash-gamepad-overlay/config.json` and start a new match. The plugin still does not parse arbitrary skin manifests or PNGs at runtime.
-- `active_skin: "auto"` selects `switch_pro_alt_builtin` for Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for GameCube controller style. The runtime checks the current P1 controller family while rendering, so a mid-match family change switches skins and clears the previous skin's panes. The non-draw HUD path resolves the new skin from the cached `sgpo_root` pane when possible, because cached HUD layout-data handles can stop resolving `sgpo_root` after controller-family changes. If a swap cannot resolve, SGPO keeps the previous skin cache instead of blanking the overlay.
+- `active_skin: "auto"` selects `default_skins.switch` for Switch/Pro/Joy-Con/handheld controller styles and `default_skins.gamecube` for GameCube controller style. The installer writes `default_simple` / `default_simple_gamecube` when no optional RetroSpy skins are included, or generated defaults for presets that are included. The runtime checks the current P1 controller family while rendering, so a mid-match family change switches skins and clears the previous skin's panes. The non-draw HUD path resolves the new skin from the cached `sgpo_root` pane when possible, because cached HUD layout-data handles can stop resolving `sgpo_root` after controller-family changes. If a swap cannot resolve, SGPO keeps the previous skin cache instead of blanking the overlay.
 - Current custom pane tree:
   - `sgpo_root`
   - `sgpo_pro_lt`, `sgpo_pro_lb`, `sgpo_pro_rt`, `sgpo_pro_rb`
@@ -175,7 +181,7 @@ Maintain a Rust-only cargo-skyline plugin that renders a P1 input overlay inside
 - GitHub CLI is now set up in the user's environment.
 - Current working tree includes the injected `info_melee` visual marker path and patch tooling.
 - Public git should contain only Rust code, docs, and patch tooling. Do not commit `data.arc`, unpacked BFLYTs/BFLANs/BNTX, or modified `layout.arc`.
-- Release assets should not include `layout.arc`; the alpha NRO is built from the user's local patched layout.
+- Release assets should not include `layout.arc`; the installer builds it from the user's local `data.arc` or extracted layout.
 - `docs/alpha-validation-checklist.md` tracks the current manual alpha validation matrix.
 - Local/editor/generated files are ignored:
   - `target/`
@@ -217,4 +223,4 @@ Eden/WSL local log path:
 - Run the alpha validation checklist after cache/layout changes.
 - Keep the A marker as the rollback/stability baseline.
 - Keep Switch testing conservative; text-box flag changes can freeze at match start.
-- Next skin milestone should be a one-pane PNG-backed proof for `sgpo_alt_face_a`, generated into ignored local output only, with `minimal_debug` still active.
+- Next packaging milestone should be publishing/packaging the Rust installer so `data.arc` plus optional skins are the normal user-facing input path without Python.

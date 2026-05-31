@@ -6,7 +6,9 @@ Do not make the Skyline plugin parse arbitrary PNGs or build full UI assets at r
 
 ## Current Built-Ins
 
-- `minimal_debug`: active square-based skin that uses the patched `sgpo_pro_*` panes.
+- `default_simple`: active square-based Switch/Pro/Joy-Con skin that uses the patched `sgpo_pro_*` panes.
+- `default_simple_gamecube`: square-based GameCube skin that reuses the same patched panes while omitting controls the GameCube controller does not have.
+- `minimal_debug`: compatibility alias for `default_simple`.
 - `switch_pro_alt_builtin`: generated-asset skin that mirrors RetroSpy's `switch-pro-alt` Switch layout. It records pane names, source image names, dimensions, positions, alpha states, stick movement ranges, and the static `background.png` shell, but it only works when matching panes/assets exist in the patched layout.
 - `gamecube_tron_builtin`: generated-asset skin that mirrors RetroSpy's `gamecube-tron` layout. It uses `sgpo_gct_*` panes and the same runtime renderer/config mechanism as `switch_pro_alt_builtin`.
 
@@ -84,71 +86,47 @@ python tools/analyze_retrospy_skin.py \
 
 ## Rust CLI Layout Build
 
-After `Toolbox-Cli` is built, generate and validate a PNG-backed layout from
-one or more dry-run manifests:
+Preferred current path:
 
 ```bash
-python tools/build_skin_layout.py \
-  --toolbox-cli /path/to/toolbox-cli \
-  --skin-dir "/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt" \
-  --force
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force
 ```
 
-Default single-skin inputs:
+With `.env` configured, `tools/sgpo_installer` reads the user's `data.arc`,
+extracts `info_melee/layout.arc`, injects the square fallback panes, optionally
+parses RetroSpy preset skins, uses `nx-layout-toolbox` as a Rust library to
+write PNG-backed BFLYT/BNTX assets, validates generated panes, packs the final
+layout, writes `config.json`, backs up previous installs, and stages the NRO.
+Until `nx-layout-toolbox` is published as a crate, the installer expects a local
+Toolbox-Cli checkout at `local-checkouts/Toolbox-Cli`.
 
-- baseline unpacked layout: `local-assets/modified/info_melee/unpacked`
-- manifest: `target/skin-build/switch-pro-alt/skin_manifest.json`
-- output: `local-assets/generated/switch-pro-alt/layout.arc`
+Optional presets:
 
-The script copies the baseline layout, runs `toolbox-cli layout-apply-manifest`
-for `info_melee.bflyt`, adds matching pane/material/texture references to
-`info_melee_lct_player_00.bflyt` and `info_melee_lct_player_01.bflyt`,
-validates all three BFLYTs with `layout-validate-manifest`, packs the SARC, and
-stages a local ARCropolis folder under
-`target/arcropolis/smash-gamepad-overlay-generated`.
+```bash
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force --include-all-presets
+```
 
-The script imports PNG textures as BC7 sRGB by default and applies green
-chroma-key cleanup only to the `switch_pro_alt_builtin` background. This keeps
-the Switch Pro transparent shell from retaining green edges while preserving
-green artwork in other skins such as GameCube Tron.
+The Rust installer exposes Toolbox-Cli's PNG import formats through
+`--texture-format`. The default is `bc7-srgb` to preserve the known-good output.
+Use `rgba8-srgb` for quality experiments with uncompressed textures; expect a
+larger generated `layout.arc`. In current testing, RGBA8 imported correctly but
+did not materially improve the `switch-pro-alt` lettering, so BC7 sRGB remains
+the normal release path.
 
 Generated PNG panes are written with alpha `0` in the layout. The runtime is
 responsible for making them visible after it resolves the active skin; this
 prevents stale or unresolved generated art from appearing during compatibility
 mode.
 
-To stage directly to an emulator SD root and select the PNG-backed runtime skin:
+The older Python layout builders are retained as reference/dev tooling and for
+comparing the Rust installer against the original pipeline. New user-facing work
+should target `tools/sgpo_installer`.
 
-```bash
-python tools/build_skin_layout.py \
-  --toolbox-cli /path/to/toolbox-cli \
-  --sd-root "/mnt/c/Games/Eden-Windows-MSVC-0.0.1-pre-alpha-amd64/eden-windows-msvc/user/sdmc" \
-  --write-config \
-  --force
-```
-
-To build both current generated skins into one layout:
-
-```bash
-python tools/build_skin_layout.py \
-  --toolbox-cli /path/to/toolbox-cli \
-  --skin "target/skin-build/switch-pro-alt/skin_manifest.json::/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt" \
-  --skin "target/skin-build/gamecube-tron/skin_manifest.json::/mnt/c/Program Files/RetroSpy/skins/gamecube-tron" \
-  --active-skin auto \
-  --force
-```
-
-For the local WSL2/Eden workflow, `tools/sgpo_skin_tool.py` wraps manifest
-generation, layout generation, config writing, backup, and NRO staging:
-
-```bash
-python tools/sgpo_skin_tool.py --force
-```
-
-`auto` is the default install mode. It selects `switch_pro_alt_builtin` for
-Switch/Pro/Joy-Con/handheld controller styles and `gamecube_tron_builtin` for
-GameCube controller style. Auto mode is evaluated from the live P1 controller
-snapshot, so it can swap skins during a match if the controller family changes.
+`auto` is the default install mode. It selects the configured Switch default for
+Switch/Pro/Joy-Con/handheld controller styles and the configured GameCube
+default for GameCube controller style. Auto mode is evaluated from the live P1
+controller snapshot, so it can swap skins during a match if the controller
+family changes.
 To force the second generated skin regardless of controller family, change the
 installed config to:
 
@@ -167,8 +145,8 @@ startup and on match start. Today that config selects a built-in skin by name:
 {
   "active_skin": "auto",
   "default_skins": {
-    "switch": "switch_pro_alt_builtin",
-    "gamecube": "gamecube_tron_builtin"
+    "switch": "default_simple",
+    "gamecube": "default_simple_gamecube"
   }
 }
 ```
@@ -185,6 +163,9 @@ python -m unittest tools.tests.test_analyze_retrospy_skin
 
 Next converter work should stay narrow: keep the runtime plugin focused on
 named-pane updates while improving the PC-side converter/install flow.
+
+See `docs/release-bundle-strategy.md` for the intended NRO-plus-PC-tool release
+shape and the user-owned inputs the installer currently requires.
 
 ## One-Pane Proof Diff
 

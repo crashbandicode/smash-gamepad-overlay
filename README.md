@@ -19,8 +19,9 @@ Current baseline:
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
 - The overlay has two display modes: `Visual` and `DebugText`.
-- `Visual` mode is configured by default and targets the `minimal_debug` square pane skin under `sgpo_root` unless a generated skin config selects another built-in skin.
-- Generated PNG-backed built-ins currently include `switch_pro_alt_builtin` and `gamecube_tron_builtin`; both require matching generated panes/assets in the installed `info_melee/layout.arc`.
+- `Visual` mode is configured by default and targets the `default_simple` square pane skin under `sgpo_root`.
+- A matching `default_simple_gamecube` square skin is available for GameCube controllers and uses only the relevant GameCube controls.
+- Generated PNG-backed built-ins currently include `switch_pro_alt_builtin` and `gamecube_tron_builtin`; both are optional and require matching generated panes/assets in the installed `info_melee/layout.arc`.
 - The visual panes come from a modified `info_melee` `layout.arc`. The default build expects that layout to be installed as a normal Smash data replacement.
 - Pressed controls dim/brighten and scale through a `SkinElement` renderer loop; missing injected panes fall back to `DebugText`.
 - Visual panes are resolved once per `info_melee` layout/root instance in the normal draw path, or once from captured P1 HUD parts layout data in the Training Modpack path, and then cached for per-frame updates.
@@ -33,6 +34,10 @@ Current baseline:
 - `cargo-skyline`.
 - Skyline installed for Smash.
 - Smash Ultimate title ID: `01006A800016E000`.
+- A user-owned Smash `data.arc` dump, or an already extracted `info_melee/layout.arc`.
+- Local checkout of `Toolbox-Cli` at `local-checkouts/Toolbox-Cli` until
+  `nx-layout-toolbox` is published as a crate.
+- Optional: RetroSpy skin folders for PNG-backed presets.
 
 The current development setup is tailored around a Windows 11 host with Ubuntu running in WSL2. Emulator deployment paths, plugin copy paths, and log locations should stay local in `.env`.
 
@@ -69,7 +74,7 @@ cargo skyline build --release
 
 Runtime logs include a build ID such as `c12-b3-...`. `c12` is derived from `git rev-list --count HEAD`; `b3` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs during normal testing. The local build counter lives under `target/` and resets after `cargo clean`.
 
-For the current visual mode, generate `local-assets/modified/info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before building. Local game dumps and extracted layout assets are ignored and should not be committed.
+For the current visual mode, generate a patched `info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before installing. Local game dumps and extracted layout assets are ignored and should not be committed.
 
 The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path. The staging script validates every pane required by the active generated skin before copying the layout.
 
@@ -96,6 +101,7 @@ Copy the `target/arcropolis/smash-gamepad-overlay` folder into your ARCropolis m
 For local emulator testing, copy `.env.example` to `.env` and set:
 
 ```text
+SGPO_SD_ROOT=/path/to/emulator/user/sdmc
 SGPO_DEPLOY_EMU=1
 SGPO_EMU_PLUGIN_DIR=/path/to/emulator/user/sdmc/atmosphere/contents/01006A800016E000/romfs/skyline/plugins
 SGPO_EMU_MODS_DIR=/path/to/emulator/user/sdmc/ultimate/mods
@@ -146,33 +152,108 @@ sgpo_root
   sgpo_pro_a_marker
 ```
 
-The active built-in skin for this layout is `minimal_debug`.
+The active built-in skins for this layout are `default_simple` for Switch-family controllers and `default_simple_gamecube` for GameCube controllers. The old `minimal_debug` name remains accepted as an alias for `default_simple`.
 
-## Generated Skin Install
+## Toolbox-Cli Checkout
 
-The current custom-skin release strategy is:
+`tools/sgpo_installer` currently links `nx-layout-toolbox` as a Cargo path
+dependency while the toolbox crate is still unpublished. Put the Toolbox-Cli
+checkout here:
 
 ```text
-shipped NRO + PC-side converter/install tool + user-owned RetroSpy skin assets
+local-checkouts/Toolbox-Cli
+```
+
+For this WSL2 setup, the checkout can be symlinked to the Windows clone:
+
+```sh
+mkdir -p local-checkouts
+ln -sfn /mnt/c/Users/intpa/Toolbox-Cli local-checkouts/Toolbox-Cli
+```
+
+After `nx-layout-toolbox` is published, replace this path dependency with the
+crate version in `tools/sgpo_installer/Cargo.toml`.
+
+## Skin Pack Install
+
+The current release strategy is:
+
+```text
+shipped NRO + PC-side converter/install tool + user-owned data.arc + optional skin assets
   -> generated ARCropolis layout replacement
   -> runtime config selecting the built-in skin table
 ```
 
 The NRO does not embed Nintendo layout assets or third-party PNGs. The install
-tool generates the local `layout.arc`, writes `config.json`, backs up the prior
-installed layout/config/NRO, and stages the rebuilt NRO to the configured SD
-root.
+tool generates the local `layout.arc`, writes `config.json`, backs up prior
+installed files, and stages the NRO to the configured SD root.
 
-For the current WSL2/Eden setup with `.env` configured:
+The Rust installer is the preferred user-facing path:
 
 ```sh
-python tools/sgpo_skin_tool.py --force
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force
 ```
 
-This includes both supported generated skins in the same layout:
+With `.env` configured, that command reads `SGPO_DATA_ARC`, generates the
+patched layout, writes `config.json`, backs up any existing layout/config/NRO,
+and stages the current NRO to `SGPO_SD_ROOT`.
+
+To include every currently supported RetroSpy preset:
+
+```sh
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force --include-all-presets
+```
+
+Generated PNG textures default to `--texture-format bc7-srgb`, which matches
+the existing working behavior. `--texture-format rgba8-srgb` is available for
+diagnosing compression artifacts at the cost of larger generated layouts. In
+current testing, RGBA8 imported correctly but did not materially improve the
+RetroSpy `switch-pro-alt` lettering, so `bc7-srgb` remains the release default.
+
+To pass inputs explicitly:
+
+```sh
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- \
+  --sd-root /path/to/sdmc \
+  --data-arc /path/to/data.arc \
+  --nro target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro \
+  --force
+```
+
+To build a ZIP that can be extracted directly onto the SD card root, add
+`--sd-zip`. The ZIP contains SD-relative paths for the NRO, ARCropolis layout,
+and skin config:
+
+```sh
+cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- \
+  --data-arc /path/to/data.arc \
+  --sd-zip target/sd-archives/sgpo-default-simple.zip \
+  --no-sd-stage \
+  --force
+```
+
+With no `--include-skin` arguments, the Rust installer builds the built-in
+square skins:
+
+- `default_simple` for Switch/Pro/Joy-Con/handheld controller styles.
+- `default_simple_gamecube` for GameCube controller style.
+
+If you want the optional RetroSpy PNG-backed skins, include them explicitly with
+`--include-all-presets`. This includes both supported generated skins in the
+same layout:
 
 - `switch_pro_alt_builtin` from `/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt`
 - `gamecube_tron_builtin` from `/mnt/c/Program Files/RetroSpy/skins/gamecube-tron`
+
+The installer extracts `ui/layout/info/info_melee/info_melee/layout.arc`,
+unpacks it, injects the default square panes, repacks the generated layout, and
+stages it. You can also pass `--layout-arc /path/to/layout.arc` if you have
+already extracted that file.
+
+The older Python scripts remain available as reference/dev tooling.
+`tools/sgpo_skin_tool.py` is only a compatibility wrapper for older local
+commands. See `docs/release-bundle-strategy.md` for the current release bundle
+plan and the full install command.
 
 To hot-swap, edit:
 
@@ -197,14 +278,14 @@ Current schema:
 {
   "active_skin": "auto",
   "default_skins": {
-    "switch": "switch_pro_alt_builtin",
-    "gamecube": "gamecube_tron_builtin"
+    "switch": "default_simple",
+    "gamecube": "default_simple_gamecube"
   }
 }
 ```
 
 If the file is missing, unreadable, malformed, or names an unknown skin, SGPO
-falls back to `minimal_debug`.
+falls back to `default_simple`.
 
 With `active_skin` set to `auto`, SGPO selects a built-in skin from P1's current
 controller family:
@@ -212,15 +293,18 @@ controller family:
 - Switch/Pro/Joy-Con/handheld controllers use `default_skins.switch`.
 - GameCube controllers use `default_skins.gamecube`.
 
-If either default is missing or invalid, SGPO falls back to the generated Switch
-Pro or GameCube default for that family. The selected skin can change while a
+If either default is missing or invalid, SGPO falls back to the built-in simple
+default for that family. The selected skin can change while a
 match is running if P1's controller family changes. Config-file edits still
 reload only at startup and match start.
 
 Currently supported built-in skin names:
 
-- `minimal_debug`: the working square-pane skin generated by
+- `default_simple`: the working square-pane Switch/Pro/Joy-Con skin generated by
   `tools/patch_info_melee_layout.py`.
+- `default_simple_gamecube`: the square-pane GameCube skin using the same patched
+  panes with non-GameCube controls omitted.
+- `minimal_debug`: compatibility alias for `default_simple`.
 - `switch_pro_alt_builtin`: data generated from RetroSpy's `switch-pro-alt`
   layout. It only renders if matching `sgpo_alt_*` panes already exist in the
   installed `info_melee/layout.arc`.
@@ -247,7 +331,8 @@ Each `SkinElement` describes:
 
 Current built-in skins:
 
-- `minimal_debug`: active square-based alpha skin using the patched `sgpo_pro_*` panes.
+- `default_simple`: active square-based alpha skin using the patched `sgpo_pro_*` panes.
+- `default_simple_gamecube`: square-based GameCube subset using the same patched panes.
 - `switch_pro_alt_builtin`: generated PNG-backed skin based on RetroSpy's `switch-pro-alt` Switch section and PNG dimensions.
 - `gamecube_tron_builtin`: generated PNG-backed skin based on RetroSpy's `gamecube-tron` skin and PNG dimensions.
 
