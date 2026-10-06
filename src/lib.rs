@@ -6,9 +6,12 @@ mod hud;
 mod input;
 mod logger;
 mod offsets;
+mod pane_lifetime;
 mod pane_utils;
 mod skin;
 mod ui;
+#[cfg(feature = "diagnostic-pane-userdata")]
+mod userdata_probe;
 mod visual;
 
 mod build_info {
@@ -22,6 +25,7 @@ use crate::config::MATCH_HUD_LAYOUT;
 use crate::hud::install_non_draw_hud_hooks;
 use crate::input::{logical_control_count, poll_p1_controller};
 use crate::logger::{log_startup_banner, reset_trace_file, trace, StartupBanner};
+use crate::pane_lifetime::install_pane_finalize_observer;
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
 };
@@ -33,7 +37,7 @@ use crate::visual::install_draw_path_visual_reset_hooks;
 
 static DRAW_HOOK_LOGGED: AtomicBool = AtomicBool::new(false);
 static MATCH_HUD_LAYOUT_LOGGED: AtomicBool = AtomicBool::new(false);
-const SUPPORTED_DRAW_PATH_DISPLAY_VERSION: &str = "13.0.4";
+const SUPPORTED_DRAW_PATH_DISPLAY_VERSION: &str = "13.0.5";
 
 #[skyline::hook(offset = draw_hook_offset_for_install())]
 unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u64) {
@@ -59,6 +63,11 @@ unsafe fn handle_layout_draw(layout: *mut Layout, draw_info: u64, cmd_buffer: u6
 
 #[skyline::main(name = "smash-gamepad-overlay")]
 pub fn main() {
+    #[cfg(feature = "diagnostic-pane-userdata")]
+    if userdata_probe::run_probe_only_if_marked(build_info::BUILD_ID) {
+        return;
+    }
+
     reset_trace_file();
     reload_active_skin_config("startup");
     let smash_display_version = display_version();
@@ -73,6 +82,11 @@ pub fn main() {
         asset_metadata_count: built_in_asset_metadata_count(),
     });
 
+    #[cfg(feature = "diagnostic-pane-userdata")]
+    userdata_probe::arm_with_overlay(build_info::BUILD_ID, &smash_display_version);
+
+    let pane_finalize_ready = install_pane_finalize_observer(&smash_display_version);
+
     if training_modpack_plugin_present() {
         trace("Training Modpack compatibility mode enabled");
         trace(&format!(
@@ -84,7 +98,13 @@ pub fn main() {
         trace(
             "Training Modpack compatibility requires the patched info_melee layout to be installed as a normal layout replacement",
         );
-        install_non_draw_hud_hooks();
+        if pane_finalize_ready {
+            install_non_draw_hud_hooks();
+        } else {
+            trace(
+                "non-draw HUD pane cache not installed because the pane finalize observer guard failed",
+            );
+        }
         return;
     }
 
@@ -92,6 +112,11 @@ pub fn main() {
         trace(&format!(
             "draw path not installed for Smash display version {smash_display_version}; ui2d helper offsets are currently supported only for {SUPPORTED_DRAW_PATH_DISPLAY_VERSION}"
         ));
+        return;
+    }
+
+    if !pane_finalize_ready {
+        trace("draw path not installed because the pane finalize observer guard failed");
         return;
     }
 

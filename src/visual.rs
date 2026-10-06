@@ -3,18 +3,23 @@ use skyline::nn::ui2d::{Layout, Pane, PaneFlag};
 use std::cell::UnsafeCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use sgpo_ui_cache_metadata::{
+    apply_finalize, classify_finalize, reset_slots, FinalizeClass, FinalizeTouch, WatchedPointers,
+};
+
 use crate::config::{OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
-use crate::pane_utils::pane_name_matches;
+use crate::pane_lifetime::{self, RoutineKind};
+use crate::pane_utils::pane_is_user_allocated;
 use crate::skin::{
     reload_active_skin_config, select_active_skin_for_snapshot, BuiltInSkin, SkinElement,
 };
 use crate::ui::find_pane_by_name;
 
 pub(crate) const MAX_RESOLVED_SKIN_ELEMENTS: usize = 32;
-const SUPPORTED_DRAW_RESET_DISPLAY_VERSION: &str = "13.0.4";
+const SUPPORTED_DRAW_RESET_DISPLAY_VERSION: &str = "13.0.5";
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) enum VisualRenderError {
@@ -26,6 +31,11 @@ pub(crate) enum VisualRenderError {
         skin_name: &'static str,
         element_count: usize,
         max_elements: usize,
+    },
+    LifetimeGuardInactive,
+    UserAllocatedPane {
+        skin_name: &'static str,
+        pane_name: &'static [u8],
     },
 }
 
@@ -40,6 +50,10 @@ struct ResolvedSkin {
 }
 
 #[derive(Debug, Copy, Clone)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "bounded static inline pointer storage intentionally avoids allocation in hooks"
+)]
 enum VisualCache {
     Empty,
     Resolved(ResolvedSkin),
@@ -62,13 +76,7 @@ struct VisualRuntimeGuard;
 
 impl VisualRuntimeGuard {
     fn acquire() -> Self {
-        while VISUAL_RUNTIME_LOCK
-            .compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
-            .is_err()
-        {
-            std::hint::spin_loop();
-        }
-
+        pane_lifetime::acquire_flag(&VISUAL_RUNTIME_LOCK);
         Self
     }
 }
@@ -85,6 +93,7 @@ unsafe fn render_into_cache(
     layout_root: *mut Pane,
     skin: &'static BuiltInSkin,
     state: &ControllerViewState,
+    notes: &mut VisualNotes,
 ) -> Result<(), VisualRenderError> {
     match *cache {
         VisualCache::Resolved(mut resolved) if resolved.is_valid_for(layout, layout_root, skin) => {
@@ -104,9 +113,19 @@ unsafe fn render_into_cache(
             Err(error)
         }
         _ => {
-            hide_cached_skin_elements_for_layout(cache, layout, layout_root);
+            let same_live_owner = match *cache {
+                VisualCache::Resolved(resolved) => {
+                    resolved.layout == layout && resolved.layout_root == layout_root
+                }
+                _ => false,
+            };
+            if same_live_owner {
+                hide_cached_skin_elements_for_layout(cache, layout, layout_root);
+            } else if matches!(*cache, VisualCache::Resolved(_)) {
+                notes.note_frozen_drop();
+            }
             *cache = VisualCache::Empty;
-            resolve_into_cache(cache, layout, layout_root, skin, state)
+            resolve_into_cache(cache, layout, layout_root, skin, state, notes)
         }
     }
 }
@@ -117,15 +136,15 @@ unsafe fn resolve_into_cache(
     layout_root: *mut Pane,
     skin: &'static BuiltInSkin,
     state: &ControllerViewState,
+    notes: &mut VisualNotes,
 ) -> Result<(), VisualRenderError> {
     match resolve_skin(layout, layout_root, skin) {
         Ok(mut resolved) => {
+            remember_resolved(&resolved);
             update_resolved_skin(&mut resolved, skin, state);
             *cache = VisualCache::Resolved(resolved);
 
-            if !VISUAL_PANES_LOGGED.swap(true, Ordering::Relaxed) {
-                trace(&format!("visual mode using injected skin '{}'", skin.name));
-            }
+            notes.note_skin(skin.name);
 
             Ok(())
         }
@@ -175,16 +194,13 @@ impl ResolvedSkin {
     ) -> bool {
         self.is_for(layout, layout_root, skin)
             && !self.skin_root.is_null()
-            && unsafe { pane_name_matches(self.skin_root, skin.root_pane_name) }
             && self.pane_count == skin.elements.len()
-            && self.panes[..self.pane_count]
-                .iter()
-                .zip(skin.elements.iter())
-                .all(|(pane, element)| unsafe { pane_name_matches(*pane, element.pane_name) })
+            && self.panes[..self.pane_count].iter().all(|pane| !pane.is_null())
     }
 }
 
 static VISUAL_PANES_LOGGED: AtomicBool = AtomicBool::new(false);
+static VISUAL_FROZEN_DROP_LOGGED: AtomicBool = AtomicBool::new(false);
 static VISUAL_RESET_HOOKS_LOGGED: AtomicBool = AtomicBool::new(false);
 static VISUAL_RUNTIME_LOCK: AtomicBool = AtomicBool::new(false);
 static VISUAL_CACHE: VisualCacheCell = VisualCacheCell(UnsafeCell::new(VisualCache::Empty));
@@ -194,16 +210,31 @@ pub(crate) unsafe fn render_visual_overlay(
     root_pane: *mut Pane,
     snapshot: Option<ControllerSnapshot>,
 ) -> Result<(), VisualRenderError> {
+    if !pane_lifetime::begin_routine(RoutineKind::Render) {
+        pane_lifetime::flush_diagnostics(None);
+        return Err(VisualRenderError::LifetimeGuardInactive);
+    }
     let skin = select_active_skin_for_snapshot(snapshot, "draw path");
     let view_state = ControllerViewState::from_optional_snapshot(snapshot);
-    let _guard = VisualRuntimeGuard::acquire();
-    render_into_cache(
-        &mut *VISUAL_CACHE.0.get(),
-        layout,
-        root_pane,
-        skin,
-        &view_state,
-    )
+    let mut notes = VisualNotes::new();
+    let result = {
+        let _guard = VisualRuntimeGuard::acquire();
+        if !pane_lifetime::cache_access_enabled() {
+            Err(VisualRenderError::LifetimeGuardInactive)
+        } else {
+            render_into_cache(
+                &mut *VISUAL_CACHE.0.get(),
+                layout,
+                root_pane,
+                skin,
+                &view_state,
+                &mut notes,
+            )
+        }
+    };
+    notes.emit();
+    pane_lifetime::flush_diagnostics(None);
+    result
 }
 
 pub(crate) fn install_draw_path_visual_reset_hooks() {
@@ -234,18 +265,107 @@ pub(crate) fn install_draw_path_visual_reset_hooks() {
 #[skyline::hook(offset = HUD_MATCH_START_OFFSET, inline)]
 unsafe fn reset_visual_runtime_on_match_start(_: &InlineCtx) {
     reload_active_skin_config("match start");
-    reset_visual_runtime();
+    reset_visual_runtime("match-start");
 }
 
 #[skyline::hook(offset = HUD_MATCH_END_OFFSET, inline)]
 unsafe fn reset_visual_runtime_on_match_end(_: &InlineCtx) {
-    reset_visual_runtime();
+    reset_visual_runtime("match-end");
 }
 
-fn reset_visual_runtime() {
+fn reset_visual_runtime(reason: &'static str) {
+    {
+        let _guard = VisualRuntimeGuard::acquire();
+        let cache = unsafe { &mut *VISUAL_CACHE.0.get() };
+        let mut projected = [watched_visual(cache)];
+        let _ = reset_slots(&mut projected);
+        *cache = VisualCache::Empty;
+    }
+    pane_lifetime::note_match_reset(reason);
+}
+
+pub(crate) fn finalize_retired_pane(retiring: u64) -> FinalizeTouch {
     let _guard = VisualRuntimeGuard::acquire();
-    unsafe {
-        *VISUAL_CACHE.0.get() = VisualCache::Empty;
+    let cache = unsafe { &mut *VISUAL_CACHE.0.get() };
+    let mut projected = [watched_visual(cache)];
+    let class = classify_finalize(&projected, retiring, |watched| *watched);
+    let cleared = apply_finalize(&mut projected, retiring, class, |watched| *watched);
+    if class == FinalizeClass::EvictMatching {
+        *cache = VisualCache::Empty;
+    }
+    FinalizeTouch { class, cleared }
+}
+
+fn remember_resolved(resolved: &ResolvedSkin) {
+    let mut children = [0u64; MAX_RESOLVED_SKIN_ELEMENTS];
+    for (slot, pane) in children
+        .iter_mut()
+        .zip(resolved.panes[..resolved.pane_count].iter())
+    {
+        *slot = *pane as u64;
+    }
+    pane_lifetime::remember_captured(
+        resolved.skin_root as u64,
+        resolved.layout_root as u64,
+        &children[..resolved.pane_count],
+        resolved.layout as u64,
+    );
+}
+
+struct VisualNotes {
+    skin_name: Option<&'static str>,
+    frozen_drop: bool,
+}
+
+impl VisualNotes {
+    fn new() -> Self {
+        Self {
+            skin_name: None,
+            frozen_drop: false,
+        }
+    }
+
+    fn note_skin(&mut self, name: &'static str) {
+        if !VISUAL_PANES_LOGGED.swap(true, Ordering::Relaxed) {
+            self.skin_name = Some(name);
+        }
+    }
+
+    fn note_frozen_drop(&mut self) {
+        if !VISUAL_FROZEN_DROP_LOGGED.swap(true, Ordering::Relaxed) {
+            self.frozen_drop = true;
+        }
+    }
+
+    fn emit(self) {
+        if let Some(name) = self.skin_name {
+            trace(&format!("visual mode using injected skin '{name}'"));
+        }
+        if self.frozen_drop {
+            trace(
+                "draw path dropped cached panes without hiding because the live layout owner changed; the previous instance may stay visible until pane finalize",
+            );
+        }
+    }
+}
+
+fn watched_visual(cache: &VisualCache) -> Option<WatchedPointers> {
+    match cache {
+        VisualCache::Resolved(resolved) => {
+            let mut watched = WatchedPointers::new();
+            watched.set_root(resolved.skin_root as u64);
+            watched.set_layout_root(resolved.layout_root as u64);
+            for pane in &resolved.panes[..resolved.pane_count] {
+                let _ = watched.push_child(*pane as u64);
+            }
+            Some(watched)
+        }
+        VisualCache::Missing { layout_root, .. } => {
+            let mut watched = WatchedPointers::new();
+            watched.set_layout_root(*layout_root as u64);
+            Some(watched)
+        }
+        VisualCache::Empty => None,
     }
 }
 
@@ -257,10 +377,12 @@ unsafe fn resolve_skin(
     validate_skin_size(skin)?;
 
     let skin_root = find_named_pane(root_pane, skin, skin.root_pane_name)?;
+    reject_user_allocated(skin_root, skin, skin.root_pane_name)?;
     let mut resolved = ResolvedSkin::new(layout, root_pane, skin, skin_root);
 
     for element in skin.elements.iter().take(MAX_RESOLVED_SKIN_ELEMENTS) {
         let pane = find_skin_pane(skin_root, skin, element)?;
+        reject_user_allocated(pane, skin, element.pane_name)?;
         resolved.push(pane);
     }
 
@@ -302,6 +424,21 @@ unsafe fn update_resolved_skin(
         .zip(skin.elements.iter())
     {
         update_visual_skin_pane(*pane, element, state);
+    }
+}
+
+unsafe fn reject_user_allocated(
+    pane: *mut Pane,
+    skin: &BuiltInSkin,
+    pane_name: &'static [u8],
+) -> Result<(), VisualRenderError> {
+    if pane_is_user_allocated(pane) {
+        Err(VisualRenderError::UserAllocatedPane {
+            skin_name: skin.name,
+            pane_name,
+        })
+    } else {
+        Ok(())
     }
 }
 

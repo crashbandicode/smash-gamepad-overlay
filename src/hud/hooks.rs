@@ -14,7 +14,7 @@ use crate::skin::{reload_active_skin_config, select_active_skin_for_snapshot};
 use super::cache;
 use super::capture;
 
-const SUPPORTED_NON_DRAW_DISPLAY_VERSION: &str = "13.0.4";
+const SUPPORTED_NON_DRAW_DISPLAY_VERSION: &str = "13.0.5";
 
 static HUD_HOOKS_LOGGED: AtomicBool = AtomicBool::new(false);
 static HUD_SCENE_UPDATE_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -59,7 +59,7 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
     }
 
     if training_mode_overlay_disabled() {
-        cache::reset_runtime();
+        cache::discard_runtime();
         return;
     }
 
@@ -77,12 +77,12 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
 unsafe fn reset_match_hud_capture_on_start(_: &InlineCtx) {
     reload_active_skin_config("match start");
     refresh_hide_training_gamepad_flag();
-    cache::reset_runtime();
+    cache::reset_runtime("match-start");
 }
 
 #[skyline::hook(offset = HUD_MATCH_END_OFFSET, inline)]
 unsafe fn reset_match_hud_capture_on_end(_: &InlineCtx) {
-    cache::reset_runtime();
+    cache::reset_runtime("match-end");
 }
 
 pub(crate) fn install_non_draw_hud_hooks() {

@@ -42,6 +42,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgpo-ui-cache-metadata"
+version = "0.1.0"
+
+[[package]]
 name = "skyline"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -68,6 +72,7 @@ dependencies = [
 name = "smash-gamepad-overlay"
 version = "0.1.0"
 dependencies = [
+ "sgpo-ui-cache-metadata",
  "skyline",
 ]
 

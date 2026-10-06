@@ -10,8 +10,13 @@ titleid = "01006A800016E000" # Super Smash Bros. Ultimate
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = []
+diagnostic-pane-userdata = []
+
 [dependencies]
 skyline = "0.6.0"
+sgpo-ui-cache-metadata = { path = "crates/sgpo-ui-cache-metadata" }
 
 [profile.dev]
 panic = "abort"
@@ -19,3 +24,5 @@ panic = "abort"
 [profile.release]
 panic = "abort"
 lto = true
+debug = true
+strip = "none"

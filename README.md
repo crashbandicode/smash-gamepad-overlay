@@ -11,10 +11,9 @@ Current baseline:
 
 ## Current Status
 
-- Tested against Smash display version `13.0.4`.
-- Current tested environment notes: ARCropolis `4.0.7`, Atmosphere `1.11.1`, and Eden `0.1.0`.
-- Without Training Modpack, the known-good path still uses `nn::ui2d::Layout::Draw`, which resolves to `.text+0x4b620` in the tested setup.
-- The normal draw path is gated to display version `13.0.4` because its ui2d helper offsets are version-specific.
+- Targets Smash display version `13.0.5`. The last on-device/emulator pass was `13.0.4` (ARCropolis `4.0.7`, Atmosphere `1.11.1`, Eden `0.1.0`). The 13.0.5 hook addresses are ported from the public HewDraw-Remix update and still need one confirmation log.
+- Without Training Modpack, the known-good path still uses `nn::ui2d::Layout::Draw`. On 13.0.4 that resolved to `.text+0x4b620`, and that address did not move in the 13.0.5 port.
+- The normal draw path is gated to display version `13.0.5` because its ui2d helper offsets are version-specific.
 - With Training Modpack compatibility detected, this plugin skips the shared `Layout::Draw` hook and uses a non-draw HUD capture/update path.
 - Training Modpack compatibility requires the patched `info_melee/layout.arc` to be installed as a normal Smash data replacement.
 - The overlay targets the match HUD layout, `info_melee`.
@@ -74,7 +73,7 @@ cargo skyline build --release
 
 Runtime logs include a build ID such as `c12-b3-...`. `c12` is derived from `git rev-list --count HEAD`; `b3` is a local build counter that increments when Cargo rebuilds the plugin, which helps spot stale NRO installs during normal testing. The local build counter lives under `target/` and resets after `cargo clean`.
 
-For the current visual mode, generate a patched `info_melee/layout.arc` from a local Smash 13.0.4 `data.arc` dump before installing. Local game dumps and extracted layout assets are ignored and should not be committed.
+For the current visual mode, generate a patched `info_melee/layout.arc` from a local Smash `data.arc` dump before installing. The layout notes in this repo were taken from a 13.0.4 dump; the 13.0.5 change is a code-offset update and does not replace that dump. Local game dumps and extracted layout assets are ignored and should not be committed.
 
 The patcher adds hidden SGPO panes to the root `info_melee` layout and to both player HUD parts layouts. The root panes are used by the normal draw path; the player-parts panes are used by the Training Modpack non-draw path. The staging script validates every pane required by the active generated skin before copying the layout.
 

@@ -1,7 +1,6 @@
 use skyline::nn::ui2d::{
     HorizontalPosition, Pane, PaneFlag, TextBox, TextBoxFlag, VerticalPosition,
 };
-use std::cell::UnsafeCell;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -12,59 +11,34 @@ use crate::config::{
 };
 use crate::input::{button_names, gc_trigger_text, npad_id_name, style_name, ControllerSnapshot};
 use crate::logger::trace;
-use crate::pane_utils::{cstr_bytes_to_str, pane_name_matches};
+use crate::pane_utils::cstr_bytes_to_str;
 use crate::ui::{find_pane_by_name, set_textbox_text};
-
-const EMPTY_TEXT_PANE_NAME: &[u8] = b"\0";
 
 #[derive(Debug, Copy, Clone)]
 struct TextPaneSlots {
     panes: [*mut Pane; MAX_OVERLAY_TEXT_PANES],
-    names: [&'static [u8]; MAX_OVERLAY_TEXT_PANES],
     count: usize,
 }
-
-#[derive(Debug, Copy, Clone)]
-enum DebugTextCache {
-    Empty,
-    Resolved {
-        root_pane: *mut Pane,
-        slots: TextPaneSlots,
-    },
-    Missing {
-        root_pane: *mut Pane,
-    },
-}
-
-struct DebugTextRuntime {
-    cache: DebugTextCache,
-}
-
-struct DebugTextRuntimeCell(UnsafeCell<DebugTextRuntime>);
-
-unsafe impl Sync for DebugTextRuntimeCell {}
 
 impl TextPaneSlots {
     fn new() -> Self {
         Self {
             panes: [ptr::null_mut(); MAX_OVERLAY_TEXT_PANES],
-            names: [EMPTY_TEXT_PANE_NAME; MAX_OVERLAY_TEXT_PANES],
             count: 0,
         }
     }
 
-    fn push(&mut self, pane: *mut Pane, name: &'static [u8]) {
+    fn push(&mut self, pane: *mut Pane) {
         if pane.is_null() || self.count >= MAX_OVERLAY_TEXT_PANES || self.contains(pane) {
             return;
         }
 
         self.panes[self.count] = pane;
-        self.names[self.count] = name;
         self.count += 1;
     }
 
     fn contains(&self, pane: *mut Pane) -> bool {
-        self.panes[..self.count].iter().any(|found| *found == pane)
+        self.panes[..self.count].contains(&pane)
     }
 
     fn drawable_count(&self) -> usize {
@@ -76,11 +50,6 @@ static MISSING_TEXT_PANE_LOGGED: AtomicBool = AtomicBool::new(false);
 static P1_PARTS_PANE_MISSING_LOGGED: AtomicBool = AtomicBool::new(false);
 static P1_PARTS_LAYOUT_MISSING_LOGGED: AtomicBool = AtomicBool::new(false);
 static TEXT_PANES_LOGGED: AtomicBool = AtomicBool::new(false);
-static DEBUG_TEXT_RUNTIME: DebugTextRuntimeCell =
-    DebugTextRuntimeCell(UnsafeCell::new(DebugTextRuntime {
-        cache: DebugTextCache::Empty,
-    }));
-
 pub(crate) unsafe fn draw_debug_text_overlay(
     root_pane: *mut Pane,
     snapshot: Option<ControllerSnapshot>,
@@ -112,30 +81,7 @@ pub(crate) unsafe fn draw_debug_text_overlay(
 }
 
 unsafe fn debug_text_panes_for_root(root_pane: *mut Pane) -> TextPaneSlots {
-    (*DEBUG_TEXT_RUNTIME.0.get()).panes_for_root(root_pane)
-}
-
-impl DebugTextRuntime {
-    unsafe fn panes_for_root(&mut self, root_pane: *mut Pane) -> TextPaneSlots {
-        match self.cache {
-            DebugTextCache::Resolved {
-                root_pane: cached_root,
-                slots,
-            } if cached_root == root_pane && text_pane_slots_are_valid(&slots) => slots,
-            DebugTextCache::Missing {
-                root_pane: cached_root,
-            } if cached_root == root_pane => TextPaneSlots::new(),
-            _ => {
-                let slots = find_debug_text_panes(root_pane);
-                self.cache = if slots.count == 0 {
-                    DebugTextCache::Missing { root_pane }
-                } else {
-                    DebugTextCache::Resolved { root_pane, slots }
-                };
-                slots
-            }
-        }
-    }
+    find_debug_text_panes(root_pane)
 }
 
 unsafe fn find_debug_text_panes(root_pane: *mut Pane) -> TextPaneSlots {
@@ -195,15 +141,8 @@ unsafe fn collect_debug_text_panes(panes: &mut TextPaneSlots, root_pane: *mut Pa
                 panes.count
             ));
         }
-        panes.push(pane, name);
+        panes.push(pane);
     }
-}
-
-unsafe fn text_pane_slots_are_valid(slots: &TextPaneSlots) -> bool {
-    slots.panes[..slots.count]
-        .iter()
-        .zip(slots.names[..slots.count].iter())
-        .all(|(pane, name)| is_usable_textbox_pane(*pane) && pane_name_matches(*pane, name))
 }
 
 unsafe fn is_usable_textbox_pane(pane: *mut Pane) -> bool {
