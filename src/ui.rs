@@ -11,14 +11,17 @@ use crate::pane_utils::cstr_bytes_to_str;
 use crate::skin::active_skin;
 use crate::visual::{render_visual_overlay, VisualRenderError};
 
+// 13.0.5: early nn::ui2d helper, unmoved from 13.0.4.
 #[skyline::from_offset(0x59970)]
 unsafe fn find_pane_by_name_recursive(pane: *const Pane, name: *const c_char) -> *mut Pane;
 
-#[skyline::from_offset(0x37a22f0)]
+// 13.0.5: 13.0.4 `0x37a22f0` plus the `+0x5B0` ui2d shift.
+#[skyline::from_offset(0x37a28a0)]
 unsafe fn pane_set_text_string(pane: *mut TextBox, text: *const c_char);
 
 static DISPLAY_MODE_LOGGED: AtomicBool = AtomicBool::new(false);
 static VISUAL_FALLBACK_LOGGED: AtomicBool = AtomicBool::new(false);
+static VISUAL_GUARD_LOGGED: AtomicBool = AtomicBool::new(false);
 
 pub(crate) unsafe fn layout_name_is(layout: *const Layout, expected: &str) -> bool {
     if (*layout).layout_name.is_null() {
@@ -49,8 +52,12 @@ pub(crate) unsafe fn draw_overlay(
         DisplayMode::DebugText => draw_debug_text_overlay(root_pane, snapshot),
         DisplayMode::Visual => {
             if let Err(error) = render_visual_overlay(layout, root_pane, snapshot) {
-                log_visual_fallback(error);
-                draw_debug_text_overlay(root_pane, snapshot);
+                if matches!(error, VisualRenderError::LifetimeGuardInactive) {
+                    log_lifetime_guard_inactive();
+                } else {
+                    log_visual_fallback(error);
+                    draw_debug_text_overlay(root_pane, snapshot);
+                }
             }
         }
     }
@@ -64,6 +71,16 @@ pub(crate) unsafe fn set_textbox_text(textbox: &mut TextBox, text: &str) {
     if let Ok(c_text) = CString::new(text) {
         pane_set_text_string(textbox, c_text.as_ptr());
     }
+}
+
+fn log_lifetime_guard_inactive() {
+    if VISUAL_GUARD_LOGGED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+
+    trace(
+        "visual pane cache inactive because the pane finalize observer is not guarding lifetimes; overlay not drawn",
+    );
 }
 
 fn log_visual_fallback(error: VisualRenderError) {
@@ -89,6 +106,20 @@ fn log_visual_fallback(error: VisualRenderError) {
             trace(
                 "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
             );
+        }
+        VisualRenderError::LifetimeGuardInactive => {
+            trace(
+                "visual mode did not fall back to debug text because cached panes are disabled",
+            );
+        }
+        VisualRenderError::UserAllocatedPane {
+            skin_name,
+            pane_name,
+        } => {
+            trace(&format!(
+                "visual mode refused user-allocated skin '{skin_name}' pane '{}'",
+                cstr_bytes_to_str(pane_name)
+            ));
         }
         VisualRenderError::SkinTooLarge {
             skin_name,

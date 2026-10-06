@@ -335,12 +335,9 @@ const DEFAULT_SIMPLE_ELEMENTS: [SkinElement; 24] = [
     minimal_stick_dot(
         ControlId::LeftStickDot,
         b"sgpo_pro_ls_dot\0",
-        -105.0,
-        -30.0,
-        14.0,
-        14.0,
-        22.0,
-        22.0,
+        (-105.0, -30.0),
+        (14.0, 14.0),
+        (22.0, 22.0),
     ),
     minimal_static_marker(
         ControlId::RightStickGate,
@@ -354,12 +351,9 @@ const DEFAULT_SIMPLE_ELEMENTS: [SkinElement; 24] = [
     minimal_stick_dot(
         ControlId::RightStickDot,
         b"sgpo_pro_rs_dot\0",
-        30.0,
-        -100.0,
-        14.0,
-        14.0,
-        22.0,
-        22.0,
+        (30.0, -100.0),
+        (14.0, 14.0),
+        (22.0, 22.0),
     ),
     minimal_button(
         ControlId::DpadUp,
@@ -469,12 +463,9 @@ const DEFAULT_SIMPLE_GAMECUBE_ELEMENTS: [SkinElement; 16] = [
     minimal_stick_dot(
         ControlId::LeftStickDot,
         b"sgpo_pro_ls_dot\0",
-        -105.0,
-        -30.0,
-        14.0,
-        14.0,
-        22.0,
-        22.0,
+        (-105.0, -30.0),
+        (14.0, 14.0),
+        (22.0, 22.0),
     ),
     minimal_static_marker(
         ControlId::RightStickGate,
@@ -488,12 +479,9 @@ const DEFAULT_SIMPLE_GAMECUBE_ELEMENTS: [SkinElement; 16] = [
     minimal_stick_dot(
         ControlId::RightStickDot,
         b"sgpo_pro_rs_dot\0",
-        30.0,
-        -100.0,
-        14.0,
-        14.0,
-        22.0,
-        22.0,
+        (30.0, -100.0),
+        (14.0, 14.0),
+        (22.0, 22.0),
     ),
     minimal_button(
         ControlId::DpadUp,
@@ -722,23 +710,17 @@ const SWITCH_PRO_ALT_ELEMENTS: [SkinElement; 21] = [
         ControlId::LeftStickDot,
         b"sgpo_alt_left_stick\0",
         "stick_Left.png",
-        -347.0,
-        137.5,
-        164.0,
-        164.0,
-        41.0,
-        41.0,
+        (-347.0, 137.5),
+        (164.0, 164.0),
+        (41.0, 41.0),
     ),
     image_stick(
         ControlId::RightStickDot,
         b"sgpo_alt_right_stick\0",
         "stick_Right.png",
-        165.0,
-        -36.5,
-        164.0,
-        164.0,
-        41.0,
-        41.0,
+        (165.0, -36.5),
+        (164.0, 164.0),
+        (41.0, 41.0),
     ),
 ];
 
@@ -866,23 +848,17 @@ const GAMECUBE_TRON_ELEMENTS: [SkinElement; 15] = [
         ControlId::LeftStickDot,
         b"sgpo_gct_left_stick_dot\0",
         "lstick_xlstick_y.png",
-        -326.0,
-        -23.0,
-        113.0,
-        113.0,
-        56.0,
-        56.0,
+        (-326.0, -23.0),
+        (113.0, 113.0),
+        (56.0, 56.0),
     ),
     image_stick(
         ControlId::RightStickDot,
         b"sgpo_gct_right_stick_dot\0",
         "cstick_xcstick_y.png",
-        -108.5,
-        -24.5,
-        80.0,
-        80.0,
-        50.0,
-        50.0,
+        (-108.5, -24.5),
+        (80.0, 80.0),
+        (50.0, 50.0),
     ),
 ];
 
@@ -953,13 +929,13 @@ const fn minimal_static_marker(
 const fn minimal_stick_dot(
     control_id: ControlId,
     pane_name: &'static [u8],
-    base_x: f32,
-    base_y: f32,
-    size_x: f32,
-    size_y: f32,
-    movement_x: f32,
-    movement_y: f32,
+    base: (f32, f32),
+    size: (f32, f32),
+    movement: (f32, f32),
 ) -> SkinElement {
+    let (base_x, base_y) = base;
+    let (size_x, size_y) = size;
+    let (movement_x, movement_y) = movement;
     SkinElement {
         control_id,
         pane_name,
@@ -1003,13 +979,13 @@ const fn image_stick(
     control_id: ControlId,
     pane_name: &'static [u8],
     image_name: &'static str,
-    base_x: f32,
-    base_y: f32,
-    size_x: f32,
-    size_y: f32,
-    movement_x: f32,
-    movement_y: f32,
+    base: (f32, f32),
+    size: (f32, f32),
+    movement: (f32, f32),
 ) -> SkinElement {
+    let (base_x, base_y) = base;
+    let (size_x, size_y) = size;
+    let (movement_x, movement_y) = movement;
     SkinElement {
         control_id,
         pane_name,

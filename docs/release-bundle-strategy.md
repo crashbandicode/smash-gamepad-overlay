@@ -97,8 +97,9 @@ The installer:
 
 Required today:
 
-- Smash 13.0.4 `data.arc` from the user's own game dump, or an already
-  extracted `ui/layout/info/info_melee/info_melee/layout.arc`.
+- A user-owned Smash `data.arc`, or an already extracted
+  `ui/layout/info/info_melee/info_melee/layout.arc`. Layout notes in this
+  repo were taken from a 13.0.4 dump. Plugin code offsets target 13.0.5.
 - A built SGPO NRO.
 - SD root path, either `--sd-root`, `SGPO_SD_ROOT`, or inferred from
   `SGPO_EMU_MODS_DIR`.

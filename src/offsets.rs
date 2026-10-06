@@ -11,7 +11,9 @@ use crate::logger::{hex_bytes, trace};
 
 pub(crate) static OFFSET_DRAW: LazyLock<Option<usize>> = LazyLock::new(resolve_draw_offset);
 
-// First instructions of nn::ui2d::Layout::Draw in Smash 13.0.1.
+// First instructions of nn::ui2d::Layout::Draw. This prologue matched
+// Smash 13.0.1 through 13.0.4 at `.text+0x4b620`. The 13.0.5 port did not
+// move that address, so the same needle is still the expected signature.
 static NEEDLE_DRAW: &[u8] = &[
     0x08, 0x0c, 0x40, 0xf9, 0xc8, 0x03, 0x00, 0xb4, 0xff, 0x83, 0x01, 0xd1, 0xf5, 0x1b, 0x00, 0xf9,
     0xf4, 0x4f, 0x04, 0xa9, 0xfd, 0x7b, 0x05, 0xa9, 0xfd, 0x43, 0x01, 0x91, 0xf4, 0x03, 0x00, 0xaa,

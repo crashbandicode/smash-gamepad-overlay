@@ -43,6 +43,7 @@ from analyze_retrospy_skin import (  # noqa: E402  (sys.path tweak must come fir
     parse_builtin_buttons,
     parse_builtin_sticks,
     parse_control_ids,
+    parse_skin_stick_calls,
     parse_switch_pro_alt_builtin,
     strip_rust_comments,
 )
@@ -50,6 +51,7 @@ from analyze_retrospy_skin import (  # noqa: E402  (sys.path tweak must come fir
 
 INPUT_FIXTURE = FIXTURE_DIR / "input_fixture.rs"
 SKIN_FIXTURE = FIXTURE_DIR / "skin_fixture.rs"
+SKIN_FIXTURE_TUPLE = FIXTURE_DIR / "skin_fixture_tuple.rs"
 
 
 class ParseControlIdsTest(unittest.TestCase):
@@ -130,16 +132,32 @@ class ParseSwitchProAltBuiltinTest(unittest.TestCase):
         self.assertEqual(left_stick.pressed_scale, IMAGE_STICK_DEFAULTS["pressed_scale"])
 
     def test_button_regex_does_not_match_stick_signature(self) -> None:
-        # parse_builtin_buttons must skip the image_stick(...) entry because the
-        # 7-argument button regex cannot match the 9-argument stick signature.
+        # Buttons stay four bare floats. Neither the historical stick call nor
+        # the current tuple call should be parsed as a button.
         body = SKIN_FIXTURE.read_text(encoding="utf-8")
         buttons = parse_builtin_buttons(body)
         self.assertEqual([button.control_id for button in buttons], ["A", "B"])
+        tuple_buttons = parse_builtin_buttons(SKIN_FIXTURE_TUPLE.read_text(encoding="utf-8"))
+        self.assertEqual(tuple_buttons, [])
 
     def test_stick_regex_does_not_match_button_signature(self) -> None:
         body = SKIN_FIXTURE.read_text(encoding="utf-8")
         sticks = parse_builtin_sticks(body)
         self.assertEqual([stick.control_id for stick in sticks], ["LeftStickDot"])
+
+    def test_tuple_image_stick_preserves_numbers(self) -> None:
+        elements = parse_switch_pro_alt_builtin(SKIN_FIXTURE_TUPLE)
+        self.assertEqual(len(elements), 1)
+        stick = elements[0]
+        self.assertEqual(stick.control_id, "LeftStickDot")
+        self.assertEqual(stick.pane_name, "sgpo_tuple_left_stick")
+        self.assertEqual(stick.image, "stick_Left.png")
+        self.assertEqual(stick.base_x, -347.0)
+        self.assertEqual(stick.base_y, 137.5)
+        self.assertEqual(stick.width, 164.0)
+        self.assertEqual(stick.height, 164.0)
+        self.assertEqual(stick.movement_x, 41.0)
+        self.assertEqual(stick.movement_y, 41.0)
 
     def test_missing_constant_raises_clearly(self) -> None:
         empty = HERE / "_empty_skin_fixture.rs"
@@ -199,6 +217,87 @@ class RealSourceParseTest(unittest.TestCase):
             f"parse_switch_pro_alt_builtin returned {len(elements)} elements; "
             f"expected {REAL_SWITCH_PRO_ALT_COUNT}. The image_static/image_button/image_stick "
             "regex is likely out of sync with src/skin.rs.",
+        )
+
+    def test_current_skin_preserves_eight_stick_calls(self) -> None:
+        calls = parse_skin_stick_calls(REAL_SKIN_RS)
+        grouped: dict[str, list[tuple[str, str, str | None, tuple[float, ...]]]] = {}
+        for call in calls:
+            grouped.setdefault(call.skin, []).append(
+                (
+                    call.constructor,
+                    call.control_id,
+                    call.image,
+                    (
+                        call.base_x,
+                        call.base_y,
+                        call.width,
+                        call.height,
+                        call.movement_x,
+                        call.movement_y,
+                    ),
+                )
+            )
+        self.assertEqual(
+            grouped,
+            {
+                "DEFAULT_SIMPLE_ELEMENTS": [
+                    (
+                        "minimal_stick_dot",
+                        "LeftStickDot",
+                        None,
+                        (-105.0, -30.0, 14.0, 14.0, 22.0, 22.0),
+                    ),
+                    (
+                        "minimal_stick_dot",
+                        "RightStickDot",
+                        None,
+                        (30.0, -100.0, 14.0, 14.0, 22.0, 22.0),
+                    ),
+                ],
+                "DEFAULT_SIMPLE_GAMECUBE_ELEMENTS": [
+                    (
+                        "minimal_stick_dot",
+                        "LeftStickDot",
+                        None,
+                        (-105.0, -30.0, 14.0, 14.0, 22.0, 22.0),
+                    ),
+                    (
+                        "minimal_stick_dot",
+                        "RightStickDot",
+                        None,
+                        (30.0, -100.0, 14.0, 14.0, 22.0, 22.0),
+                    ),
+                ],
+                "SWITCH_PRO_ALT_ELEMENTS": [
+                    (
+                        "image_stick",
+                        "LeftStickDot",
+                        "stick_Left.png",
+                        (-347.0, 137.5, 164.0, 164.0, 41.0, 41.0),
+                    ),
+                    (
+                        "image_stick",
+                        "RightStickDot",
+                        "stick_Right.png",
+                        (165.0, -36.5, 164.0, 164.0, 41.0, 41.0),
+                    ),
+                ],
+                "GAMECUBE_TRON_ELEMENTS": [
+                    (
+                        "image_stick",
+                        "LeftStickDot",
+                        "lstick_xlstick_y.png",
+                        (-326.0, -23.0, 113.0, 113.0, 56.0, 56.0),
+                    ),
+                    (
+                        "image_stick",
+                        "RightStickDot",
+                        "cstick_xcstick_y.png",
+                        (-108.5, -24.5, 80.0, 80.0, 50.0, 50.0),
+                    ),
+                ],
+            },
         )
 
     def test_control_ids_match_logical_control_count(self) -> None:

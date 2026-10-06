@@ -656,40 +656,149 @@ def parse_builtin_buttons(body: str) -> list[BuiltInElement]:
     ]
 
 
+def _xy_pair(prefix: str) -> str:
+    """Match a current `(x, y)` pair or the historical bare `x, y` pair."""
+    number = FLOAT_RE
+    return (
+        rf"(?:\(\s*(?P<{prefix}_x>{number})\s*,\s*(?P<{prefix}_y>{number})\s*\)"
+        rf"|(?P<{prefix}_x_flat>{number})\s*,\s*(?P<{prefix}_y_flat>{number}))"
+    )
+
+
+def _pair_values(match: re.Match[str], prefix: str) -> tuple[float, float]:
+    x_value = match.group(f"{prefix}_x")
+    y_value = match.group(f"{prefix}_y")
+    if x_value is None or y_value is None:
+        x_value = match.group(f"{prefix}_x_flat")
+        y_value = match.group(f"{prefix}_y_flat")
+    return float(x_value), float(y_value)
+
+
 def parse_builtin_sticks(body: str) -> list[BuiltInElement]:
     pattern = re.compile(
         rf"""image_stick\(
             \s*ControlId::(?P<control>\w+),
             \s*b"(?P<pane>[^"]+)\\0",
             \s*"(?P<image>[^"]+)",
-            \s*(?P<base_x>{FLOAT_RE}),
-            \s*(?P<base_y>{FLOAT_RE}),
-            \s*(?P<width>{FLOAT_RE}),
-            \s*(?P<height>{FLOAT_RE}),
-            \s*(?P<movement_x>{FLOAT_RE}),
-            \s*(?P<movement_y>{FLOAT_RE}),
-            \s*\)""",
+            \s*{_xy_pair("base")}
+            \s*,\s*{_xy_pair("size")}
+            \s*,\s*{_xy_pair("movement")}
+            \s*,?\s*\)""",
         flags=re.S | re.X,
     )
-    return [
-        BuiltInElement(
-            control_id=match.group("control"),
-            pane_name=match.group("pane"),
-            image=match.group("image"),
-            material_name=material_name(match.group("pane")),
-            base_x=float(match.group("base_x")),
-            base_y=float(match.group("base_y")),
-            width=float(match.group("width")),
-            height=float(match.group("height")),
-            released_alpha=IMAGE_STICK_DEFAULTS["released_alpha"],
-            pressed_alpha=IMAGE_STICK_DEFAULTS["pressed_alpha"],
-            released_scale=IMAGE_STICK_DEFAULTS["released_scale"],
-            pressed_scale=IMAGE_STICK_DEFAULTS["pressed_scale"],
-            movement_x=float(match.group("movement_x")),
-            movement_y=float(match.group("movement_y")),
+    elements: list[BuiltInElement] = []
+    for match in pattern.finditer(body):
+        base_x, base_y = _pair_values(match, "base")
+        width, height = _pair_values(match, "size")
+        movement_x, movement_y = _pair_values(match, "movement")
+        elements.append(
+            BuiltInElement(
+                control_id=match.group("control"),
+                pane_name=match.group("pane"),
+                image=match.group("image"),
+                material_name=material_name(match.group("pane")),
+                base_x=base_x,
+                base_y=base_y,
+                width=width,
+                height=height,
+                released_alpha=IMAGE_STICK_DEFAULTS["released_alpha"],
+                pressed_alpha=IMAGE_STICK_DEFAULTS["pressed_alpha"],
+                released_scale=IMAGE_STICK_DEFAULTS["released_scale"],
+                pressed_scale=IMAGE_STICK_DEFAULTS["pressed_scale"],
+                movement_x=movement_x,
+                movement_y=movement_y,
+            )
         )
-        for match in pattern.finditer(body)
-    ]
+    return elements
+
+
+@dataclass(frozen=True)
+class ParsedStickCall:
+    skin: str
+    constructor: str
+    control_id: str
+    pane_name: str
+    image: str | None
+    base_x: float
+    base_y: float
+    width: float
+    height: float
+    movement_x: float
+    movement_y: float
+
+
+_STICK_SKIN_ARRAYS = (
+    "DEFAULT_SIMPLE_ELEMENTS",
+    "DEFAULT_SIMPLE_GAMECUBE_ELEMENTS",
+    "SWITCH_PRO_ALT_ELEMENTS",
+    "GAMECUBE_TRON_ELEMENTS",
+)
+
+_MINIMAL_STICK_RE = re.compile(
+    rf"""minimal_stick_dot\(
+        \s*ControlId::(?P<control>\w+),
+        \s*b"(?P<pane>[^"]+)\\0",
+        \s*{_xy_pair("base")}
+        \s*,\s*{_xy_pair("size")}
+        \s*,\s*{_xy_pair("movement")}
+        \s*,?\s*\)""",
+    flags=re.S | re.X,
+)
+
+
+def _const_array_body(text: str, name: str) -> str:
+    start = text.find(f"const {name}")
+    if start < 0:
+        raise ValueError(f"Could not find {name}")
+    body_start = text.find("= [", start)
+    body_end = text.find("];", body_start)
+    if body_start < 0 or body_end < 0:
+        raise ValueError(f"Could not isolate {name} body")
+    return text[body_start:body_end]
+
+
+def parse_skin_stick_calls(skin_rs: Path) -> list[ParsedStickCall]:
+    """Return every stick builder call in the four built-in skin arrays."""
+    text = strip_rust_comments(skin_rs.read_text(encoding="utf-8"))
+    calls: list[ParsedStickCall] = []
+    for skin in _STICK_SKIN_ARRAYS:
+        body = _const_array_body(text, skin)
+        for match in _MINIMAL_STICK_RE.finditer(body):
+            base_x, base_y = _pair_values(match, "base")
+            width, height = _pair_values(match, "size")
+            movement_x, movement_y = _pair_values(match, "movement")
+            calls.append(
+                ParsedStickCall(
+                    skin=skin,
+                    constructor="minimal_stick_dot",
+                    control_id=match.group("control"),
+                    pane_name=match.group("pane"),
+                    image=None,
+                    base_x=base_x,
+                    base_y=base_y,
+                    width=width,
+                    height=height,
+                    movement_x=movement_x,
+                    movement_y=movement_y,
+                )
+            )
+        for element in parse_builtin_sticks(body):
+            calls.append(
+                ParsedStickCall(
+                    skin=skin,
+                    constructor="image_stick",
+                    control_id=element.control_id,
+                    pane_name=element.pane_name,
+                    image=element.image,
+                    base_x=element.base_x,
+                    base_y=element.base_y,
+                    width=element.width,
+                    height=element.height,
+                    movement_x=element.movement_x or 0.0,
+                    movement_y=element.movement_y or 0.0,
+                )
+            )
+    return calls
 
 
 def build_manifest(

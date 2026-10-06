@@ -93,6 +93,9 @@ pub(super) unsafe fn captured_layout(ctx: &InlineCtx) -> Option<CapturedHudLayou
     }
 }
 
+// `Layout::GetPaneByName` (main+0x3776910) calls the game allocator. This helper
+// does not release that handle. The deallocator is a follow-up, not part of
+// this lifetime revision.
 pub(super) unsafe fn find_pane_in_layout_data(
     layout_data: u64,
     pane_name: &'static [u8],

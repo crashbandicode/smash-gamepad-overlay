@@ -1,0 +1,8 @@
+[package]
+name = "sgpo-ui-cache-metadata"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Host-testable metadata for SGPO pane-cache retirement"
+
+[dependencies]
