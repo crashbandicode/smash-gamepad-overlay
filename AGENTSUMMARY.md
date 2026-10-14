@@ -231,7 +231,7 @@ Eden/WSL local log path:
 
 ## Likely Next Steps
 
-- Confirm the 13.0.5 port on Switch or emulator: display version `13.0.5`, `Layout::Draw` at `.text+0x4b620`, and a non-draw scene-update log line.
+- 13.0.5 port confirmed on Switch and Eden (2026-10-06, 2026-10-14), both times with Training Modpack loaded, so through the non-draw path. The standalone `Layout::Draw` path without Training Modpack has not been rechecked on 13.0.5.
 - Polish the programmer-art visual layout after more Switch/emulator testing.
 - Run the alpha validation checklist after cache/layout changes.
 - Keep the A marker as the rollback/stability baseline.
@@ -449,3 +449,19 @@ remain installed; PROBE_ONLY preserved in SD backup. All other plugins unchanged
 Switch HOME, Smash closed; all owned Eden stopped; both probe-run profiles restored.
 Separate asset-only root cause still unproven/unreproduced. Initial two-match native
 success supports lifecycle fix; do not call every historical crash resolved.
+
+## 2026-10-14 v0.1.0 release checkpoint
+
+Switch (Atmosphere 1.12.0 + hekate 6.5.4, ARCropolis 4.1.1, Training Modpack,
+Smash 13.0.5) and Eden 9a5d704c9c both ran build
+c25-b17-31994bc-dirty-c702bd88435e27c6 (NRO 20e9e062..., the
+diagnostic-pane-userdata feature build from 2026-10-06). Its source was
+reconstructed (31994bc + native-userdata-probe/source-review.patch + untracked
+sources) and matches 1bae4ee except AGENTSUMMARY notes. Release v0.1.0 is that
+source built with default features from main. The 2026-10-13 memory pass
+(opt-level "s", stack buffers) was never run on a device and is parked in
+`git stash` ("memory-pass-1013: untested ..."), not in the release.
+The installer built against public Toolbox-Cli origin/main edce70e and produced a
+layout from the local data.arc. Host clippy on the plugin crate is still blocked
+by nnsdk E0554 on stable; cargo skyline check/clippy and the metadata crate's
+17 host tests pass.
