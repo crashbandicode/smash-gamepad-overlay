@@ -46,6 +46,12 @@ observer-only probe that writes `sd:/smash-gamepad-overlay-probe.log`. Release
 `v0.1.0` is the same source built with default features (probe off), so it is
 not byte-identical to the tested binary.
 
+Release `v0.1.1` is the `v0.1.0` source plus a memory pass (release profile
+`opt-level = "s"`, smaller skin tables, stack buffers on the text path; see
+[Memory](#memory)). It changes no hook, offset, pane name or runtime
+behaviour, but its binary has not been run on a Switch or in Eden. `v0.1.0`
+remains the last device-tested release.
+
 Both tests had Training Modpack loaded, so they exercised the non-draw HUD
 path. The standalone `Layout::Draw` path used without Training Modpack has not
 been rechecked on 13.0.5.
@@ -61,8 +67,8 @@ You need a Switch with Atmosphère (or Eden), Skyline, ARCropolis and Smash
 
 ### 1. Plugin and config
 
-Download `smash-gamepad-overlay-v0.1.0-sd.zip` from the
-[latest release](https://github.com/crashbandicode/smash-gamepad-overlay/releases/latest)
+Download `smash-gamepad-overlay-v0.1.1-sd.zip` from the
+[latest release](https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay/releases)
 and extract it to the root of your SD card. It contains:
 
 ```text
@@ -85,9 +91,9 @@ from your own `data.arc` dump with the repository's Rust installer. You need
 Git and Rust 1.96 or newer:
 
 ```sh
-git clone https://github.com/crashbandicode/smash-gamepad-overlay
+git clone https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay
 cd smash-gamepad-overlay
-git checkout v0.1.0
+git checkout v0.1.1
 git clone https://github.com/crashbandicode/Toolbox-Cli local-checkouts/Toolbox-Cli
 cargo run --release --manifest-path tools/sgpo_installer/Cargo.toml -- \
   --data-arc /path/to/your/data.arc \
@@ -230,6 +236,27 @@ cargo test --manifest-path crates/sgpo-ui-cache-metadata/Cargo.toml
 
 Host `cargo clippy` on the plugin crate itself fails on stable Rust because
 `nnsdk` uses `#![feature]`; use `cargo skyline clippy` instead.
+
+### Memory
+
+The plugin is mapped into the game's memory for the whole session, so the
+release profile favours size: `opt-level = "s"` with fat LTO and
+`panic = "abort"`. Measured on the aarch64 ELF with the same fixed build ID
+(`readelf -S`; NRO size from the file):
+
+| build | `.text` | `.rodata` | `.data` | `.bss` | `.rela.dyn` | NRO |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| v0.1.0 (`opt-level = 3`) | 87744 | 22032 | 13296 | 4016 | 8544 | 143360 |
+| v0.1.0 code, `opt-level = "s"` | 63952 | 21912 | 13304 | 4048 | 8496 | 118784 |
+| v0.1.1 code, `opt-level = 3` | 89984 | 21592 | 10936 | 4016 | 7776 | 139264 |
+| v0.1.1 (`opt-level = "s"`) | 64544 | 21496 | 10944 | 4048 | 7728 | 114688 |
+
+Besides the profile, v0.1.1 drops the two converter-only name fields from
+every `SkinElement` (the tables lose 2352 bytes of `.data` and 34 dynamic
+relocations), formats `DebugText` lines into fixed 256-byte stack buffers
+instead of `String`s, and passes text to `set_text_string` from a stack buffer
+instead of a `CString`. In Visual mode the per-frame paths already allocated
+nothing; the text fallback now allocates nothing per frame either.
 
 ### Layout generation with a local `.env`
 
