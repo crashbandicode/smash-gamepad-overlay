@@ -30,8 +30,7 @@ pub(crate) const SKIN_CONFIG_PATH: &str = "sd:/ultimate/mods/smash-gamepad-overl
 #[cfg(feature = "diagnostic-pane-userdata")]
 pub(crate) const PROBE_LOG_PATH: &str = "sd:/smash-gamepad-overlay-probe.log";
 #[cfg(feature = "diagnostic-pane-userdata")]
-pub(crate) const PROBE_ONLY_FLAG_PATH: &str =
-    "sd:/ultimate/mods/smash-gamepad-overlay/PROBE_ONLY";
+pub(crate) const PROBE_ONLY_FLAG_PATH: &str = "sd:/ultimate/mods/smash-gamepad-overlay/PROBE_ONLY";
 /// `Pane::GetExtUserDataArray` on Smash 13.0.5. The inline observer runs
 /// before the original load of `pane+0xa8`. The Picture path that faulted in
 /// Count calls this Array entry from main+0x5f540; Count's return is

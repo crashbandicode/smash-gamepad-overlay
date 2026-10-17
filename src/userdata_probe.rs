@@ -78,9 +78,7 @@ fn arm(build_id: &str) -> ArmResult {
 
 fn arm_with_version(build_id: &str, display_version: &str) -> ArmResult {
     if display_version != SUPPORTED_DISPLAY_VERSION {
-        return ArmResult::Refused(
-            "userdata probe not armed: Smash display version is not 13.0.5",
-        );
+        return ArmResult::Refused("userdata probe not armed: Smash display version is not 13.0.5");
     }
     if let Err(reason) = guard_matches() {
         trace(reason);
@@ -266,7 +264,9 @@ fn text_relative(addr: u64, text: u64) -> u64 {
 }
 
 fn field_ptr(base: u64, offset: usize) -> Option<*const u8> {
-    (base as usize).checked_add(offset).map(|addr| addr as *const u8)
+    (base as usize)
+        .checked_add(offset)
+        .map(|addr| addr as *const u8)
 }
 
 fn read_u8(base: u64, offset: usize) -> Option<u8> {

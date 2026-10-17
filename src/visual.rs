@@ -195,7 +195,9 @@ impl ResolvedSkin {
         self.is_for(layout, layout_root, skin)
             && !self.skin_root.is_null()
             && self.pane_count == skin.elements.len()
-            && self.panes[..self.pane_count].iter().all(|pane| !pane.is_null())
+            && self.panes[..self.pane_count]
+                .iter()
+                .all(|pane| !pane.is_null())
     }
 }
 
