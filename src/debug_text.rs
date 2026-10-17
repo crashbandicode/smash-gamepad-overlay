@@ -1,6 +1,7 @@
 use skyline::nn::ui2d::{
     HorizontalPosition, Pane, PaneFlag, TextBox, TextBoxFlag, VerticalPosition,
 };
+use std::fmt::{self, Write};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -9,10 +10,12 @@ use crate::config::{
     DEBUG_TEXT_POS_Y, DEBUG_TEXT_WIDTH, MATCH_HUD_LAYOUT, MAX_OVERLAY_TEXT_PANES, OVERLAY_CONFIG,
     OVERLAY_LINE_TEXT_PANES, P1_PARTS_PANE_NAME,
 };
-use crate::input::{button_names, gc_trigger_text, npad_id_name, style_name, ControllerSnapshot};
+use crate::input::{
+    npad_id_name, style_name, write_button_names, write_gc_trigger_text, ControllerSnapshot,
+};
 use crate::logger::trace;
 use crate::pane_utils::cstr_bytes_to_str;
-use crate::ui::{find_pane_by_name, set_textbox_text};
+use crate::ui::{find_pane_by_name, set_textbox_text, TEXTBOX_TEXT_CAP};
 
 #[derive(Debug, Copy, Clone)]
 struct TextPaneSlots {
@@ -76,7 +79,7 @@ pub(crate) unsafe fn draw_debug_text_overlay(
     for (line_index, line) in lines.iter().enumerate().take(line_count) {
         let textbox = (*text_panes.panes[line_index]).as_textbox();
         position_debug_text(textbox, line_index);
-        set_textbox_text(textbox, line);
+        set_textbox_text(textbox, line.as_str());
     }
 }
 
@@ -186,70 +189,144 @@ fn scaled(value: f32) -> f32 {
     value * OVERLAY_CONFIG.scale
 }
 
-fn p1_header(snapshot: &ControllerSnapshot) -> String {
-    format!(
+const DEBUG_TEXT_LINE_CAP: usize = TEXTBOX_TEXT_CAP;
+
+struct DebugLine {
+    bytes: [u8; DEBUG_TEXT_LINE_CAP],
+    len: usize,
+}
+
+impl DebugLine {
+    const fn new() -> Self {
+        Self {
+            bytes: [0; DEBUG_TEXT_LINE_CAP],
+            len: 0,
+        }
+    }
+
+    fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.bytes[..self.len]).unwrap_or("")
+    }
+
+    fn clear(&mut self) {
+        self.len = 0;
+    }
+}
+
+impl Write for DebugLine {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let bytes = text.as_bytes();
+        let next = self.len.checked_add(bytes.len()).ok_or(fmt::Error)?;
+        if next > DEBUG_TEXT_LINE_CAP {
+            return Err(fmt::Error);
+        }
+        self.bytes[self.len..next].copy_from_slice(bytes);
+        self.len = next;
+        Ok(())
+    }
+}
+
+fn write_or_clear(line: &mut DebugLine, write_line: impl FnOnce(&mut DebugLine) -> fmt::Result) {
+    line.clear();
+    if write_line(line).is_err() {
+        line.clear();
+    }
+}
+
+fn write_p1_header(line: &mut DebugLine, snapshot: &ControllerSnapshot) -> fmt::Result {
+    write!(
+        line,
         "P1 {} {}",
         npad_id_name(snapshot.npad_id),
         style_name(snapshot.style_flags)
     )
 }
 
-fn stick_line(snapshot: &ControllerSnapshot, trailing: Option<&str>) -> String {
+fn write_stick_line(
+    line: &mut DebugLine,
+    snapshot: &ControllerSnapshot,
+    trailing: Option<&str>,
+) -> fmt::Result {
     let (lx, ly) = snapshot.left_stick;
     let (rx, ry) = snapshot.right_stick;
     match trailing {
-        Some(extra) => format!("LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}  {extra}"),
-        None => format!("LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}"),
+        Some(extra) => write!(line, "LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}  {extra}"),
+        None => write!(line, "LS {lx:+05},{ly:+05}  RS {rx:+05},{ry:+05}"),
     }
+}
+
+fn write_fixed(line: &mut DebugLine, text: &str) {
+    write_or_clear(line, |line| line.write_str(text));
 }
 
 fn format_debug_text_lines(
     snapshot: Option<ControllerSnapshot>,
     pane_count: usize,
-) -> [String; DEBUG_TEXT_LINE_COUNT] {
+) -> [DebugLine; DEBUG_TEXT_LINE_COUNT] {
+    let mut lines = [
+        DebugLine::new(),
+        DebugLine::new(),
+        DebugLine::new(),
+        DebugLine::new(),
+    ];
     let Some(snapshot) = snapshot else {
-        return [
-            String::from("P1 controller not ready"),
-            String::from("BTN -"),
-            String::from("LS -----,-----"),
-            String::from("RS -----,-----"),
-        ];
+        write_fixed(&mut lines[0], "P1 controller not ready");
+        write_fixed(&mut lines[1], "BTN -");
+        write_fixed(&mut lines[2], "LS -----,-----");
+        write_fixed(&mut lines[3], "RS -----,-----");
+        return lines;
     };
-
-    let trigger_text =
-        gc_trigger_text(snapshot.gc_triggers).unwrap_or_else(|| String::from("GC LT --- RT ---"));
-    let header = p1_header(&snapshot);
-    let buttons = button_names(snapshot.buttons);
 
     let (lx, ly) = snapshot.left_stick;
     let (rx, ry) = snapshot.right_stick;
     match pane_count {
         // Case 1 uses single-space separators because it must fit on one line.
-        1 => [
-            format!(
-                "{header} BTN {buttons} LS {lx:+05},{ly:+05} RS {rx:+05},{ry:+05} {trigger_text}"
-            ),
-            String::new(),
-            String::new(),
-            String::new(),
-        ],
-        2 => [
-            format!("{header}  BTN {buttons}"),
-            stick_line(&snapshot, Some(&trigger_text)),
-            String::new(),
-            String::new(),
-        ],
-        3 => [
-            header,
-            format!("BTN {buttons}"),
-            stick_line(&snapshot, Some(&trigger_text)),
-            String::new(),
-        ],
-        _ => [
-            header,
-            format!("BTN {buttons}"),
-            stick_line(&snapshot, None),
-            trigger_text,
-        ],
+        1 => {
+            write_or_clear(&mut lines[0], |line| {
+                write_p1_header(line, &snapshot)?;
+                line.write_str(" BTN ")?;
+                write_button_names(snapshot.buttons, line)?;
+                write!(line, " LS {lx:+05},{ly:+05} RS {rx:+05},{ry:+05} ")?;
+                write_gc_trigger_text(snapshot.gc_triggers, line)
+            });
+        }
+        2 => {
+            write_or_clear(&mut lines[0], |line| {
+                write_p1_header(line, &snapshot)?;
+                line.write_str("  BTN ")?;
+                write_button_names(snapshot.buttons, line)
+            });
+            write_or_clear(&mut lines[1], |line| {
+                let mut trigger = DebugLine::new();
+                write_gc_trigger_text(snapshot.gc_triggers, &mut trigger)?;
+                write_stick_line(line, &snapshot, Some(trigger.as_str()))
+            });
+        }
+        3 => {
+            write_or_clear(&mut lines[0], |line| write_p1_header(line, &snapshot));
+            write_or_clear(&mut lines[1], |line| {
+                line.write_str("BTN ")?;
+                write_button_names(snapshot.buttons, line)
+            });
+            write_or_clear(&mut lines[2], |line| {
+                let mut trigger = DebugLine::new();
+                write_gc_trigger_text(snapshot.gc_triggers, &mut trigger)?;
+                write_stick_line(line, &snapshot, Some(trigger.as_str()))
+            });
+        }
+        _ => {
+            write_or_clear(&mut lines[0], |line| write_p1_header(line, &snapshot));
+            write_or_clear(&mut lines[1], |line| {
+                line.write_str("BTN ")?;
+                write_button_names(snapshot.buttons, line)
+            });
+            write_or_clear(&mut lines[2], |line| {
+                write_stick_line(line, &snapshot, None)
+            });
+            write_or_clear(&mut lines[3], |line| {
+                write_gc_trigger_text(snapshot.gc_triggers, line)
+            });
+        }
     }
+    lines
 }

@@ -1,6 +1,6 @@
 use skyline::libc::c_char;
 use skyline::nn::ui2d::{Layout, Pane, TextBox};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::config::{configured_display_mode, DisplayMode};
@@ -67,10 +67,20 @@ pub(crate) unsafe fn find_pane_by_name(root_pane: *mut Pane, name: &[u8]) -> *mu
     find_pane_by_name_recursive(root_pane, name.as_ptr() as *const c_char)
 }
 
+/// Longest text accepted by `set_textbox_text`, in bytes, before the NUL terminator.
+/// `debug_text` sizes its line buffers to this so a formatted line is never dropped here.
+pub(crate) const TEXTBOX_TEXT_CAP: usize = 256;
+
 pub(crate) unsafe fn set_textbox_text(textbox: &mut TextBox, text: &str) {
-    if let Ok(c_text) = CString::new(text) {
-        pane_set_text_string(textbox, c_text.as_ptr());
+    // Interior NUL matches the old CString::new failure, which skipped the write.
+    // The buffer is one byte longer than the cap so the terminator always stays zero.
+    if text.len() > TEXTBOX_TEXT_CAP || text.as_bytes().contains(&0) {
+        return;
     }
+
+    let mut stack = [0u8; TEXTBOX_TEXT_CAP + 1];
+    stack[..text.len()].copy_from_slice(text.as_bytes());
+    pane_set_text_string(textbox, stack.as_ptr() as *const c_char);
 }
 
 fn log_lifetime_guard_inactive() {
@@ -108,9 +118,7 @@ fn log_visual_fallback(error: VisualRenderError) {
             );
         }
         VisualRenderError::LifetimeGuardInactive => {
-            trace(
-                "visual mode did not fall back to debug text because cached panes are disabled",
-            );
+            trace("visual mode did not fall back to debug text because cached panes are disabled");
         }
         VisualRenderError::UserAllocatedPane {
             skin_name,
