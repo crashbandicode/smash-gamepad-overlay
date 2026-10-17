@@ -226,13 +226,13 @@ impl HudVisualRuntime {
                 HudCache::Resolved(resolved) if resolved.skin_name != skin.name => {
                     let swap = apply_skin_swap(SlotKind::Resolved, || unsafe {
                         resolve_hud_skin_from_root(
-                        CapturedHudLayout {
-                            layout_data: resolved.layout_data,
-                            kind: resolved.layout_kind,
-                        },
-                        skin,
-                        resolved.skin_root,
-                    )
+                            CapturedHudLayout {
+                                layout_data: resolved.layout_data,
+                                kind: resolved.layout_kind,
+                            },
+                            skin,
+                            resolved.skin_root,
+                        )
                     });
                     match swap {
                         Ok(Ok(new_resolved)) => {
@@ -542,9 +542,8 @@ pub(super) unsafe fn capture_runtime(captured: CapturedHudLayout, skin: &'static
     {
         let _guard = HudRuntimeGuard::acquire();
         if pane_lifetime::cache_access_enabled() {
-            (*HUD_VISUAL_RUNTIME.0.get()).publish_capture(
-                captured, skin, resolved, epoch, &mut notes,
-            );
+            (*HUD_VISUAL_RUNTIME.0.get())
+                .publish_capture(captured, skin, resolved, epoch, &mut notes);
         }
     }
     notes.emit();

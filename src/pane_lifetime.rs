@@ -397,10 +397,7 @@ fn note_routine_thread(kind: RoutineKind) {
     let previous = slot.swap(thread, Ordering::Relaxed);
     if previous == 0 {
         if !first_logged.swap(true, Ordering::Relaxed) {
-            trace(&format!(
-                "ui cache {} thread=0x{thread:x}",
-                kind_name(kind)
-            ));
+            trace(&format!("ui cache {} thread=0x{thread:x}", kind_name(kind)));
         }
         return;
     }

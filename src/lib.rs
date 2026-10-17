@@ -25,10 +25,10 @@ use crate::config::MATCH_HUD_LAYOUT;
 use crate::hud::install_non_draw_hud_hooks;
 use crate::input::{logical_control_count, poll_p1_controller};
 use crate::logger::{log_startup_banner, reset_trace_file, trace, StartupBanner};
-use crate::pane_lifetime::install_pane_finalize_observer;
 use crate::offsets::{
     display_version, draw_hook_offset_for_install, training_modpack_plugin_present, OFFSET_DRAW,
 };
+use crate::pane_lifetime::install_pane_finalize_observer;
 use crate::skin::{
     active_skin, built_in_asset_metadata_count, built_in_skin_count, reload_active_skin_config,
 };
