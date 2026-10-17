@@ -24,11 +24,9 @@ pub(crate) struct StickMovementRange {
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct SkinElement {
     pub control_id: ControlId,
+    /// True when the builder was given a source image name. Rendering does not load that file.
+    pub has_asset_metadata: bool,
     pub pane_name: &'static [u8],
-    /// Source image name consumed by the future PC-side converter; ignored by the runtime plugin.
-    pub image_name: Option<&'static str>,
-    /// Generated/source material name consumed by the future PC-side converter; ignored by the runtime plugin.
-    pub material_name: Option<&'static str>,
     pub base_x: f32,
     pub base_y: f32,
     pub size_x: f32,
@@ -120,7 +118,7 @@ pub(crate) fn built_in_asset_metadata_count() -> usize {
     BUILT_IN_SKINS
         .iter()
         .flat_map(|skin| skin.elements.iter())
-        .filter(|element| element.image_name.is_some() || element.material_name.is_some())
+        .filter(|element| element.has_asset_metadata)
         .count()
 }
 
@@ -867,9 +865,8 @@ const GAMECUBE_TRON_ELEMENTS: [SkinElement; 15] = [
 // fully visible, non-stick element need to be spelled out at the call site.
 const BLANK_ELEMENT: SkinElement = SkinElement {
     control_id: ControlId::A,
+    has_asset_metadata: false,
     pane_name: b"\0",
-    image_name: None,
-    material_name: None,
     base_x: 0.0,
     base_y: 0.0,
     size_x: 0.0,
@@ -963,8 +960,8 @@ const fn image_button(
 ) -> SkinElement {
     SkinElement {
         control_id,
+        has_asset_metadata: !image_name.is_empty(),
         pane_name,
-        image_name: Some(image_name),
         base_x,
         base_y,
         size_x,
@@ -988,8 +985,8 @@ const fn image_stick(
     let (movement_x, movement_y) = movement;
     SkinElement {
         control_id,
+        has_asset_metadata: !image_name.is_empty(),
         pane_name,
-        image_name: Some(image_name),
         base_x,
         base_y,
         size_x,
@@ -1013,8 +1010,8 @@ const fn image_static(
 ) -> SkinElement {
     SkinElement {
         control_id,
+        has_asset_metadata: !image_name.is_empty(),
         pane_name,
-        image_name: Some(image_name),
         base_x,
         base_y,
         size_x,

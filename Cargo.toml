@@ -24,5 +24,7 @@ panic = "abort"
 [profile.release]
 panic = "abort"
 lto = true
+# Size over speed. The mapped NRO is the game-heap cost; fat LTO is already on.
+opt-level = "s"
 debug = true
 strip = "none"

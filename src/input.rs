@@ -1,3 +1,5 @@
+use std::fmt::{self, Write};
+
 use skyline::nn::hid;
 
 use crate::config::{
@@ -289,8 +291,14 @@ pub(crate) fn npad_id_name(npad_id: u32) -> &'static str {
     }
 }
 
-pub(crate) fn gc_trigger_text(triggers: Option<(u32, u32)>) -> Option<String> {
-    triggers.map(|(left, right)| format!("GC LT {left:03} RT {right:03}"))
+pub(crate) fn write_gc_trigger_text(
+    triggers: Option<(u32, u32)>,
+    out: &mut impl Write,
+) -> fmt::Result {
+    match triggers {
+        Some((left, right)) => write!(out, "GC LT {left:03} RT {right:03}"),
+        None => out.write_str("GC LT --- RT ---"),
+    }
 }
 
 // Order matters: GameCube reports first because its flag can coexist with
@@ -334,23 +342,24 @@ pub(crate) fn style_name(style_flags: u32) -> &'static str {
         .unwrap_or("Unknown")
 }
 
-pub(crate) fn button_names(buttons: u64) -> String {
-    let mut names = String::new();
+pub(crate) fn write_button_names(buttons: u64, out: &mut impl Write) -> fmt::Result {
+    let mut any = false;
 
     for &(mask, name) in BUTTON_LABELS {
         if buttons & mask != 0 {
-            if !names.is_empty() {
-                names.push(' ');
+            if any {
+                out.write_char(' ')?;
             }
-            names.push_str(name);
+            out.write_str(name)?;
+            any = true;
         }
     }
 
-    if names.is_empty() {
-        names.push('-');
+    if !any {
+        out.write_char('-')?;
     }
 
-    names
+    Ok(())
 }
 
 fn normalize_stick(stick: (i32, i32)) -> (f32, f32) {
