@@ -459,9 +459,43 @@ diagnostic-pane-userdata feature build from 2026-10-06). Its source was
 reconstructed (31994bc + native-userdata-probe/source-review.patch + untracked
 sources) and matches 1bae4ee except AGENTSUMMARY notes. Release v0.1.0 is that
 source built with default features from main. The 2026-10-13 memory pass
-(opt-level "s", stack buffers) was never run on a device and is parked in
-`git stash` ("memory-pass-1013: untested ..."), not in the release.
+(opt-level "s", stack buffers) was never run on a device and was parked in
+`git stash` ("memory-pass-1013: untested ..."), not in the release; it was
+committed for v0.1.1 (see below).
 The installer built against public Toolbox-Cli origin/main edce70e and produced a
 layout from the local data.arc. Host clippy on the plugin crate is still blocked
 by nnsdk E0554 on stable; cargo skyline check/clippy and the metadata crate's
 17 host tests pass.
+
+## 2026-10-17 v0.1.1 memory pass and release
+
+Operator order: release the overlay with the 13.0.5 compatibility work and
+memory optimizations. Nothing had been committed since `v0.1.0` (the 13.0.5
+pane-lifetime fix `1bae4ee` is already in v0.1.0), so the parked memory pass
+was taken out of `git stash`, reviewed and committed as the change set for
+v0.1.1:
+
+- release profile `opt-level = "s"` (fat LTO, `panic = "abort"` unchanged);
+- `SkinElement` drops `image_name`/`material_name` (converter-only) and keeps
+  `has_asset_metadata` for the startup count;
+- `DebugText` lines are formatted into fixed 256-byte stack buffers and
+  `set_textbox_text` copies into a stack buffer instead of a `CString`; the
+  shared `ui::TEXTBOX_TEXT_CAP` keeps the two caps equal.
+
+Measured with one fixed build id (`readelf -S` on the ELF, NRO file size):
+v0.1.0 `.text` 87744 / `.rodata` 22032 / `.data` 13296 / `.bss` 4016 /
+`.rela.dyn` 8544 / NRO 143360; v0.1.1 `.text` 64544 / `.rodata` 21496 /
+`.data` 10944 / `.bss` 4048 / `.rela.dyn` 7728 / NRO 114688. `opt-level = "s"`
+alone on the v0.1.0 code gives NRO 118784; the code changes alone at
+`opt-level = 3` give 139264. The Training Modpack `GetPaneByName` handle
+release noted on 2026-10-13 is still not done.
+
+Gates on the release tree: `cargo fmt --check`, `cargo skyline clippy -- --
+-D warnings`, metadata crate 17 host tests, Python tool tests (23),
+`cargo skyline build --release` and `--no-default-features`. Host
+`cargo clippy --all-targets` still fails on nnsdk E0554 (stable channel).
+
+The v0.1.1 binary has not been run on a Switch or in Eden; the release notes
+say so. `v0.1.0` remains the last device-tested release. The repository's
+Forgejo home `intpa/smash-gamepad-overlay` was created for this release
+(public); the GitHub remote is now `github` and was not pushed.
