@@ -499,3 +499,29 @@ The v0.1.1 binary has not been run on a Switch or in Eden; the release notes
 say so. `v0.1.0` remains the last device-tested release. The repository's
 Forgejo home `intpa/smash-gamepad-overlay` was created for this release
 (public); the GitHub remote is now `github` and was not pushed.
+
+Release record (2026-10-17): tag `v0.1.1` (annotated) on commit
+`e53bf91ad6e3434e766acaf623321db21dd2f0fc`, built from a clean detached
+worktree at that tag with `SMASH_GAMEPAD_OVERLAY_BUILD_ID=v0.1.1-c30-e53bf91`,
+default features, cargo-skyline 3.5.0, `skyline` 0.6.0. NRO SHA-256
+`aedc773b1cc141857f86ae190be35f624cb7d36a86715738a7d71875e783eb51`
+(114688 B), ELF `19d72cf0c0cb56df9296c40935abdc48ccc3c95f00dd034ed7a3a6d2404cfa3d`,
+`smash-gamepad-overlay-v0.1.1-sd.zip`
+`16d7f7917881a1b48cd54e7f0b6f5d6b7ae97d57bc97f00aa46d8c98b5fe433e` (54805 B;
+NRO at its SD path, `config.json`, README text, no game data). Gates on that
+tree: `cargo fmt --check`, `cargo skyline clippy -- -- -D warnings` (flags
+verified to reach clippy-driver), 17 metadata-crate tests, 3 installer tests
+(against public Toolbox-Cli `edce70e`; the `local-checkouts/Toolbox-Cli`
+symlink still pointed at a WSL path and was repointed to a fresh clone), 23
+Python tool tests, `cargo skyline build --release` and
+`--no-default-features` (same source and features; the second binary differs
+from the packaged one by 33 bytes: the embedded local build counter and the
+module id). Forgejo release id 379,
+<https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay/releases/tag/v0.1.1>,
+assets `libsmash_gamepad_overlay.nro` (127), `smash-gamepad-overlay-v0.1.1-sd.zip`
+(128), `manifest.json` (129), `SHA256SUMS.txt` (130); anonymous download
+readback of all four matched the packaged hashes. Package, ELF and release
+notes are kept outside the repository at
+`~/.local/share/ssbu-mod-backups/sgpo-release-v0.1.1/`. `main` and the tags
+`v0.1.1`, `v0.1.0`, `v0.1.0-alpha.1`, `v0.1.0-alpha.2` and `latest` are on
+Forgejo. The old `memory-pass-1013` stash entry and branch were left in place.
