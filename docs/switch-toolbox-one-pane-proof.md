@@ -39,14 +39,7 @@ Expected local paths:
 
 ```text
 local-assets/modified/info_melee/unpacked/
-/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt/face_A.png
-```
-
-Useful Windows paths from WSL:
-
-```bash
-wslpath -w "$PWD/local-assets/proof/switch-pro-alt-one-pane/unpacked"
-wslpath -w "/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt/face_A.png"
+<RetroSpy install>/skins/switch-pro-alt/face_A.png
 ```
 
 ## Prepare Proof Workdir

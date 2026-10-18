@@ -40,7 +40,7 @@ Tested and working on 2026-10-14 on both a Switch and Eden:
 
 Both platforms ran build `c25-b17-31994bc-dirty-c702bd88435e27c6`
 (NRO SHA-256 `20e9e062c9ace6230b3fadda6fb9a1ffdb76659479f3b32de0f1100e9e72a494`).
-Its source is identical to commit `1bae4ee` (only `AGENTSUMMARY.md` notes
+Its source is identical to commit `1bae4ee` (only handoff notes
 differ). It was built with the `diagnostic-pane-userdata` feature, an
 observer-only probe that writes `sd:/smash-gamepad-overlay-probe.log`. Release
 `v0.1.0` is the same source built with default features (probe off), so it is
@@ -181,8 +181,9 @@ sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT
 
 In this mode the plugin captures P1's HUD parts layout from the HUD info-alpha
 hook and drives live input updates from the scene-update hook. Cached panes are
-tracked through guarded `Pane::Finalize` and `Layout::Finalize` observers so a
-pane is forgotten when the game frees it.
+tracked through a guarded `Pane::Finalize` observer so a pane is forgotten when
+the game frees it. A guarded `Layout::Finalize` observer only counts; it evicts
+nothing.
 
 ## Runtime Log
 
@@ -194,7 +195,8 @@ shows nothing.
 
 If Training Modpack is loaded and the log says `could not find ... sgpo_root`,
 Smash is loading an unpatched `info_melee` layout. Regenerate and reinstall it
-(step 2 of [Install](#install)).
+with the Rust installer (step 2 of [Install](#install), `tools/sgpo_installer`);
+the log's own hint still names the Python scripts.
 
 ## Known Limitations
 
@@ -252,7 +254,7 @@ release profile favours size: `opt-level = "s"` with fat LTO and
 | v0.1.1 (`opt-level = "s"`) | 64544 | 21496 | 10944 | 4048 | 7728 | 114688 |
 
 Besides the profile, v0.1.1 drops the two converter-only name fields from
-every `SkinElement` (the tables lose 2352 bytes of `.data` and 34 dynamic
+every `SkinElement` (the tables lose 2360 bytes of `.data` and 32 dynamic
 relocations), formats `DebugText` lines into fixed 256-byte stack buffers
 instead of `String`s, and passes text to `set_text_string` from a stack buffer
 instead of a `CString`. In Visual mode the per-frame paths already allocated
@@ -317,8 +319,7 @@ runtime. See [Skin Converter Notes](docs/skin-converter-notes.md).
 
 - `AGENTS.md`: project instructions for coding agents.
 - `CLAUDE.md`: Claude Code entry point.
-- `AGENTSUMMARY.md`: current-state handoff; update it when hooks, offsets,
-  asset workflow or next steps change.
+- The restart-safe handoff lives in the operator's evidence root outside this repository; do not add a handoff file here.
 - `sgpo-handoff.mdc`: portable Cursor rule; copy it to
   `.cursor/rules/sgpo-handoff.mdc` to use it.
 

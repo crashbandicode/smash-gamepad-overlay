@@ -2,6 +2,12 @@
 /target/
 /tools/extract_info_melee_layout/
 /tools/sgpo_installer/target/
+/crates/*/target/
+/crates/*/Cargo.lock
+
+# Local agent notes and environment helpers (handoffs live in the evidence root)
+/AGENTSUMMARY.md
+/scripts/
 
 # Skyline artifacts copied outside target
 *.nro

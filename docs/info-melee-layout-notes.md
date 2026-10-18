@@ -59,7 +59,7 @@ The player parts layouts contain many character-specific panes. This explains th
 
 For the first stable visual test, do not reuse player text/name panes and do not add runtime-created panes.
 
-The repo now has a reproducible local patch script:
+The Rust installer (`tools/sgpo_installer`) patches these layouts and packs `layout.arc` itself. The original manual method, kept as reference tooling, is the repo's reproducible local patch script:
 
 ```sh
 python tools/patch_info_melee_layout.py
