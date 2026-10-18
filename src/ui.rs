@@ -114,7 +114,7 @@ fn log_visual_fallback(error: VisualRenderError) {
                 active_skin().expected_layout_flavor
             ));
             trace(
-                "regenerate layout with `python tools/patch_info_melee_layout.py`, then stage with `python tools/stage_arcropolis_layout.py`",
+                "regenerate and reinstall the layout with tools/sgpo_installer (README, Install)",
             );
         }
         VisualRenderError::LifetimeGuardInactive => {
