@@ -10,22 +10,20 @@ release NRO + PC-side install tool
 ```
 
 Do not ship Nintendo assets, copied RetroSpy PNGs, unpacked BFLYT/BFLAN/BNTX
-files, or generated `layout.arc` files in GitHub releases.
+files, or generated `layout.arc` files in Forgejo releases.
 
 ## Release Contents
 
-Recommended release assets:
+The v0.1.1 release on Forgejo carries four assets:
 
 - `libsmash_gamepad_overlay.nro`
-- a Rust installer binary built from `tools/sgpo_installer`
-- a source/tools archive for developers containing:
-  - `tools/sgpo_installer/`
-  - `tools/analyze_retrospy_skin.py`
-  - `tools/build_skin_layout.py`
-  - `tools/patch_info_melee_layout.py`
-  - `tools/stage_arcropolis_layout.py`
-  - any small Python helpers/tests/docs needed by those scripts
-- a short release README pointing users to this document and `README.md`
+- `smash-gamepad-overlay-v0.1.1-sd.zip`, an SD-root archive holding the NRO at its Skyline plugin path, `config.json` and a short README text, with no game data
+- `manifest.json`
+- `SHA256SUMS.txt`
+
+The installer (`tools/sgpo_installer`) and the Python reference tools are not
+release assets; users clone the tagged source and run the installer from it, as
+`README.md` describes.
 
 The Rust installer uses `nx-layout-toolbox` as a library. Until that crate is
 published, local development uses a Toolbox-Cli checkout at
@@ -100,9 +98,9 @@ Required today:
 - A user-owned Smash `data.arc`, or an already extracted
   `ui/layout/info/info_melee/info_melee/layout.arc`. Layout notes in this
   repo were taken from a 13.0.4 dump. Plugin code offsets target 13.0.5.
-- A built SGPO NRO.
+- A built SGPO NRO, unless `--skip-nro` is passed.
 - SD root path, either `--sd-root`, `SGPO_SD_ROOT`, or inferred from
-  `SGPO_EMU_MODS_DIR`.
+  `SGPO_EMU_MODS_DIR`, unless `--sd-zip` is passed.
 
 Optional:
 

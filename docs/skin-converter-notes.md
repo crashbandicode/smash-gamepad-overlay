@@ -9,26 +9,26 @@ Do not make the Skyline plugin parse arbitrary PNGs or build full UI assets at r
 - `default_simple`: active square-based Switch/Pro/Joy-Con skin that uses the patched `sgpo_pro_*` panes.
 - `default_simple_gamecube`: square-based GameCube skin that reuses the same patched panes while omitting controls the GameCube controller does not have.
 - `minimal_debug`: compatibility alias for `default_simple`.
-- `switch_pro_alt_builtin`: generated-asset skin that mirrors RetroSpy's `switch-pro-alt` Switch layout. It records pane names, source image names, dimensions, positions, alpha states, stick movement ranges, and the static `background.png` shell, but it only works when matching panes/assets exist in the patched layout.
+- `switch_pro_alt_builtin`: generated-asset skin that mirrors RetroSpy's `switch-pro-alt` Switch layout. It records pane names, dimensions, positions, alpha states, stick movement ranges, whether a source image was named (`has_asset_metadata`, the only image metadata kept at runtime), and the static `background.png` shell, but it only works when matching panes/assets exist in the patched layout.
 - `gamecube_tron_builtin`: generated-asset skin that mirrors RetroSpy's `gamecube-tron` layout. It uses `sgpo_gct_*` panes and the same runtime renderer/config mechanism as `switch_pro_alt_builtin`.
 
-## Future Converter Flow
+## Converter Flow
 
 ```text
 RetroSpy skin.xml + PNG assets
-  -> PC-side converter
+  -> PC-side converter (tools/sgpo_installer)
   -> generated layout.arc panes/materials/textures
-  -> generated skin manifest or Rust skin table
+  -> generated skin manifest and matching Rust skin table
   -> plugin updates panes by ControlId
 ```
 
-The converter should:
+The converter:
 
-- read the RetroSpy `skin.xml` control positions and image names;
-- copy or convert PNG assets into Smash-compatible texture/material data;
-- inject one named pane per `SkinElement` under `sgpo_root`;
-- emit a manifest/table that maps `ControlId` to pane name, image/material name, x/y, size, alpha values, and stick movement range;
-- keep generated `layout.arc`, extracted BFLYT/BFLAN/BNTX assets, and game dumps out of git.
+- reads the RetroSpy `skin.xml` control positions and image names;
+- copies or converts PNG assets into Smash-compatible texture/material data;
+- injects one named pane per `SkinElement` under `sgpo_root`;
+- emits a manifest that maps `ControlId` to pane name, image/material name, x/y, size, alpha values, and stick movement range;
+- keeps generated `layout.arc`, extracted BFLYT/BFLAN/BNTX assets, and game dumps out of git.
 
 The plugin should only require the generated panes to already exist.
 
@@ -44,7 +44,7 @@ Provide a RetroSpy skin directory either with `--skin-dir` or with
 `SGPO_RETROSPY_SKIN_DIR` in `.env`:
 
 ```bash
-python tools/analyze_retrospy_skin.py --skin-dir "/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt"
+python tools/analyze_retrospy_skin.py --skin-dir "<RetroSpy install>/skins/switch-pro-alt"
 ```
 
 It writes repo-safe planning artifacts only:
@@ -65,7 +65,7 @@ The manifest contains one entry per mapped control:
 - pressed/released scale defaults
 - optional stick movement range
 
-The tool validates that the generated manifest exactly matches the inactive
+The tool validates that the generated manifest exactly matches the
 `switch_pro_alt_builtin` Rust target. It does not copy PNGs, generate
 Nintendo layout assets, or write a modified `layout.arc`.
 
@@ -74,7 +74,7 @@ pane prefix. The current GameCube Tron manifest is generated with:
 
 ```bash
 python tools/analyze_retrospy_skin.py \
-  --skin-dir "/mnt/c/Program Files/RetroSpy/skins/gamecube-tron" \
+  --skin-dir "<RetroSpy install>/skins/gamecube-tron" \
   --section gamecube \
   --skin-name gamecube_tron_builtin \
   --pane-prefix sgpo_gct \

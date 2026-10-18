@@ -427,14 +427,14 @@ SGPO should then be able to run:
 python tools/diff_one_pane_proof.py --fail-on-missing
 ```
 
-and see:
+and find these lines in the report it writes:
 
 ```text
-Pane sgpo_alt_face_a present: yes
-Material mat_sgpo_alt_face_a present: yes
-Pane binds to material: yes
-Material references texture tex_sgpo_alt_face_a: yes
-BNTX contains texture name tex_sgpo_alt_face_a: yes
+- Pane `sgpo_alt_face_a` present: `yes`
+- Material `mat_sgpo_alt_face_a` present: `yes`
+- Pane binds to material: `yes`
+- Material references texture `tex_sgpo_alt_face_a`: `yes`
+- BNTX contains texture name `tex_sgpo_alt_face_a`: `yes`
 ```
 
 After that, SGPO can runtime-test a temporary one-pane skin before attempting a

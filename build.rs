@@ -9,7 +9,6 @@ const FINGERPRINT_INPUTS: &[&str] = &[
     "tools",
     "docs",
     "README.md",
-    "AGENTSUMMARY.md",
     "build.rs",
     "Cargo.toml",
     "Cargo.lock",

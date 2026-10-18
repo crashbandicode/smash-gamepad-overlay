@@ -243,7 +243,7 @@ python -m sarc create \
 
 ## Where this fits in the broader workflow
 
-Slot Steps 1–5 of this runbook into `switch-toolbox-one-pane-proof.md`
+Slot Steps 1–5 of this runbook into `../docs/switch-toolbox-one-pane-proof.md`
 between **"Save `info_melee.bflyt`"** (the Switch Toolbox manual save) and
 **"Repack Proof Layout"** (the `python -m sarc create` invocation, which
 corresponds to Step 6 here).

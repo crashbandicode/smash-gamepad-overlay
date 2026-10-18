@@ -7,12 +7,11 @@ This repo is `smash-gamepad-overlay`, a Rust/cargo-skyline Super Smash Bros. Ult
 
 Before making architectural changes, read:
 - AGENTS.md
-- AGENTSUMMARY.md
 - README.md
 - docs/alpha-validation-checklist.md
 - docs/skin-converter-notes.md when working on skins
 
-AGENTSUMMARY.md is the canonical current-state handoff summary.
+The restart-safe handoff lives in the operator's evidence root outside this repository; do not add a handoff file here.
 
 Key constraints:
 - Runtime feature must remain an in-game Skyline plugin.
