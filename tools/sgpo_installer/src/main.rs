@@ -500,7 +500,7 @@ fn available_presets(switch_dir: &Path, gamecube_dir: &Path) -> Vec<SkinPreset> 
             section: "switch",
             pane_prefix: "sgpo_alt",
             expected_layout_flavor:
-                "switch_pro_alt_builtin generated asset panes from the future skin converter",
+                "switch_pro_alt_builtin generated asset panes from tools/sgpo_installer",
             skin_dir: switch_dir.to_path_buf(),
             manifest_dir: PathBuf::from("target/skin-build/switch-pro-alt"),
             report: PathBuf::from("target/skin-analysis/switch-pro-alt.md"),
@@ -513,7 +513,7 @@ fn available_presets(switch_dir: &Path, gamecube_dir: &Path) -> Vec<SkinPreset> 
             section: "gamecube",
             pane_prefix: "sgpo_gct",
             expected_layout_flavor:
-                "gamecube_tron_builtin generated asset panes from the future skin converter",
+                "gamecube_tron_builtin generated asset panes from tools/sgpo_installer",
             skin_dir: gamecube_dir.to_path_buf(),
             manifest_dir: PathBuf::from("target/skin-build/gamecube-tron"),
             report: PathBuf::from("target/skin-analysis/gamecube-tron.md"),

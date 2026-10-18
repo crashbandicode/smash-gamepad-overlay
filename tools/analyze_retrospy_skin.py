@@ -36,7 +36,7 @@ GENERATED_SKIN_NAME = "switch_pro_alt_builtin"
 ROOT_PANE_NAME = "sgpo_root"
 DEFAULT_PANE_PREFIX = "sgpo_alt"
 EXPECTED_LAYOUT_FLAVOR = (
-    "switch_pro_alt_builtin generated asset panes from the future skin converter"
+    "switch_pro_alt_builtin generated asset panes from tools/sgpo_installer"
 )
 
 IMAGE_BUTTON_DEFAULTS = {

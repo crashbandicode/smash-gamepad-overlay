@@ -78,7 +78,7 @@ python tools/analyze_retrospy_skin.py \
   --section gamecube \
   --skin-name gamecube_tron_builtin \
   --pane-prefix sgpo_gct \
-  --expected-layout-flavor "gamecube_tron_builtin generated asset panes from the future skin converter" \
+  --expected-layout-flavor "gamecube_tron_builtin generated asset panes from tools/sgpo_installer" \
   --skip-built-in-validation \
   --out target/skin-analysis/gamecube-tron.md \
   --manifest-dir target/skin-build/gamecube-tron
