@@ -14,10 +14,10 @@ files, or generated `layout.arc` files in Forgejo releases.
 
 ## Release Contents
 
-The v0.1.1 release on Forgejo carries four assets:
+The v0.1.3 release bundle contains four assets:
 
 - `libsmash_gamepad_overlay.nro`
-- `smash-gamepad-overlay-v0.1.1-sd.zip`, an SD-root archive holding the NRO at its Skyline plugin path, `config.json` and a short README text, with no game data
+- `smash-gamepad-overlay-v0.1.3-sd.zip`, an SD-root archive holding the NRO at its Skyline plugin path, `config.json` and a short README text, with no game data
 - `manifest.json`
 - `SHA256SUMS.txt`
 

@@ -7,7 +7,10 @@ use sgpo_ui_cache_metadata::{
     apply_finalize, classify_finalize, reset_slots, FinalizeClass, FinalizeTouch, WatchedPointers,
 };
 
-use crate::config::{OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG};
+use crate::config::{
+    OverlayConfig, HUD_MATCH_END_OFFSET, HUD_MATCH_START_OFFSET, OVERLAY_CONFIG,
+    PRACTICE_ROOT_OVERLAY_CONFIG,
+};
 use crate::input::{ControllerSnapshot, ControllerViewState};
 use crate::logger::trace;
 use crate::offsets::display_version;
@@ -419,7 +422,12 @@ unsafe fn update_resolved_skin(
     skin: &BuiltInSkin,
     state: &ControllerViewState,
 ) {
-    update_visual_skin_root_with_config(resolved.skin_root, &OVERLAY_CONFIG, skin);
+    let config = if crate::scene::practice_active() {
+        &PRACTICE_ROOT_OVERLAY_CONFIG
+    } else {
+        &OVERLAY_CONFIG
+    };
+    update_visual_skin_root_with_config(resolved.skin_root, config, skin);
 
     for (pane, element) in resolved.panes[..resolved.pane_count]
         .iter()
