@@ -110,6 +110,14 @@ pub(crate) const OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     opacity: 255,
 };
 
+// Practice placement for the root-layout path, beyond the CPU panel.
+pub(crate) const PRACTICE_ROOT_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
+    x: 160.0,
+    y: -420.0,
+    scale: 0.55,
+    ..OVERLAY_CONFIG
+};
+
 pub(crate) const TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
     x: 315.0,
@@ -128,16 +136,18 @@ pub(crate) const TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG: OverlayConfig = Over
 
 pub(crate) const TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
-    x: -240.0,
-    y: -30.0,
+    // Training and waiting-room practice keep P1 and the CPU on the left.
+    // Move beyond the CPU HUD without changing the match-only transforms above.
+    x: 760.0,
+    y: 30.0,
     scale: 0.55,
     opacity: 255,
 };
 
 pub(crate) const TRAINING_MODE_P1_2_PARTS_OVERLAY_CONFIG: OverlayConfig = OverlayConfig {
     mode: DisplayMode::Visual,
-    x: -85.0,
-    y: -80.0,
+    x: 605.0,
+    y: -20.0,
     scale: 0.5,
     opacity: 255,
 };

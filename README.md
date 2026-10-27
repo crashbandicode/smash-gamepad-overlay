@@ -18,6 +18,9 @@ panes that a patched `info_melee/layout.arc` adds to the match HUD.
 
 *A 1v1 stock match against a CPU in Eden (2026-10-14), starting with a stock loss and respawn: the overlay sits near the bottom centre, beside P1's HUD.*
 
+These clips show the older placement. **v0.1.3** moves the Training and lobby
+practice overlay to the right of the CPU's bottom HUD; match placement is unchanged.
+
 Both clips were recorded in Eden build `9a5d704c9c` with Smash 13.0.5 and
 Training Modpack loaded. Cropped stills of the same scenes are in
 `docs/media/gamepad-training.png` and `docs/media/gamepad-match.png`. The clips
@@ -49,12 +52,22 @@ not byte-identical to the tested binary.
 Release `v0.1.1` is the `v0.1.0` source plus a memory pass (release profile
 `opt-level = "s"`, smaller skin tables, stack buffers on the text path; see
 [Memory](#memory)). It changes no hook, offset, pane name or runtime
-behaviour, but its binary has not been run on a Switch or in Eden. `v0.1.0`
-remains the last device-tested release.
+behaviour, but its binary was not run on a Switch or in Eden.
 
-Both tests had Training Modpack loaded, so they exercised the non-draw HUD
-path. The standalone `Layout::Draw` path used without Training Modpack has not
-been rechecked on 13.0.5.
+Release `v0.1.2` was subsequently tested on Switch on 2026-10-18 with Smash
+13.0.5, Atmosphère 1.12.1, Horizon OC 2.6.0, hekate 6.5.4 and Training Modpack.
+The operator report and startup log identify build `c33-b35-0d25b0d` and successful
+P1 HUD capture. It remains the last physical-device-tested release.
+
+Release `v0.1.3` adds practice-only placement for native Training and lobby
+waiting-room practice. Lobby detection is read-only and guarded for Smash 13.0.5;
+it does not change the game's mode or enable Training Modpack features. Existing
+patched layouts and skin configs remain compatible. See the release notes for
+the patch's validation coverage.
+
+The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exercised
+the non-draw HUD path. The standalone `Layout::Draw` path used without Training
+Modpack has not been rechecked on 13.0.5.
 
 The plugin is built with `cargo-skyline` 3.5.0 against the `skyline` crate
 0.6.0 (`Cargo.toml` and `Cargo.lock`). Hook offsets target Smash display
@@ -67,7 +80,7 @@ You need a Switch with Atmosphère (or Eden), Skyline, ARCropolis and Smash
 
 ### 1. Plugin and config
 
-Download `smash-gamepad-overlay-v0.1.1-sd.zip` from the
+Download `smash-gamepad-overlay-v0.1.3-sd.zip` from the
 [latest release](https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay/releases)
 and extract it to the root of your SD card. It contains:
 
@@ -83,6 +96,9 @@ To install by hand instead, copy `libsmash_gamepad_overlay.nro` to
 For Eden, use the same paths under Eden's `sdmc` folder (for example
 `~/.local/share/eden/sdmc/` on Linux).
 
+**Upgrading an existing install:** replace only the NRO to keep your current skin
+config. Existing patched layouts work with v0.1.3; no layout regeneration is needed.
+
 ### 2. Patched `info_melee/layout.arc` (required)
 
 The overlay's panes live in a patched copy of the game's match HUD layout.
@@ -93,7 +109,7 @@ Git and Rust 1.96 or newer:
 ```sh
 git clone https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay
 cd smash-gamepad-overlay
-git checkout v0.1.1
+git checkout v0.1.3
 git clone https://github.com/crashbandicode/Toolbox-Cli local-checkouts/Toolbox-Cli
 cargo run --release --manifest-path tools/sgpo_installer/Cargo.toml -- \
   --data-arc /path/to/your/data.arc \
@@ -203,8 +219,9 @@ the log's own hint still names the Python scripts.
 - Smash 13.0.5 only. The draw path and offsets are gated to that version.
 - The visual skins are rough programmer art made of cloned picture panes.
 - With Training Modpack the overlay lives in P1's HUD parts layout, so it
-  cannot reach the bottom-right corner without clipping. Training mode uses a
-  separate left-side placement to stay clear of the CPU's HUD.
+  uses HUD-local coordinates. Training and lobby practice use a separate
+  placement to the right of the CPU's bottom HUD; normal matches keep their
+  existing P1-adjacent placement.
 - A dropped layout can keep its last alpha until the game finalizes its panes.
 - A results-to-CSS crash seen once on Switch during the 2026-10-06
   investigation has no proven root cause. The pane lifetime fix in this

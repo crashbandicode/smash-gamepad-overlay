@@ -8,6 +8,7 @@ mod logger;
 mod offsets;
 mod pane_lifetime;
 mod pane_utils;
+mod scene;
 mod skin;
 mod ui;
 #[cfg(feature = "diagnostic-pane-userdata")]
@@ -86,6 +87,7 @@ pub fn main() {
     userdata_probe::arm_with_overlay(build_info::BUILD_ID, &smash_display_version);
 
     let pane_finalize_ready = install_pane_finalize_observer(&smash_display_version);
+    scene::init(&smash_display_version);
 
     if training_modpack_plugin_present() {
         trace("Training Modpack compatibility mode enabled");

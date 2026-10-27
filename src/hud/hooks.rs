@@ -36,10 +36,12 @@ unsafe fn capture_match_hud_layout_data(ctx: &InlineCtx) {
     if captured.kind.is_match_root()
         && !HUD_MATCH_ROOT_CAPTURED_LOGGED.swap(true, Ordering::Relaxed)
     {
-        trace("non-draw HUD path found root info_melee layout; using bottom-right root overlay");
+        trace(
+            "non-draw HUD path found root info_melee layout; using scene-specific root placement",
+        );
     }
 
-    let training_mode = training_mode_active();
+    let training_mode = crate::scene::practice_active();
     let snapshot = poll_p1_controller();
     let skin = select_active_skin_for_snapshot(snapshot, "non-draw HUD capture");
     cache::capture_runtime(captured, skin);
@@ -66,7 +68,7 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
     let snapshot = poll_p1_controller();
     let skin = select_active_skin_for_snapshot(snapshot, "non-draw HUD scene update");
     let view_state = ControllerViewState::from_optional_snapshot(snapshot);
-    if cache::update_runtime(&view_state, training_mode_active(), skin)
+    if cache::update_runtime(&view_state, crate::scene::practice_active(), skin)
         && !HUD_VISUAL_UPDATE_LOGGED.swap(true, Ordering::Relaxed)
     {
         trace("non-draw HUD path updated visual panes");
