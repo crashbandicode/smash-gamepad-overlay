@@ -12,21 +12,24 @@ panes that a patched `info_melee/layout.arc` adds to the match HUD.
 
 ![Overlay in Training](docs/media/gamepad-training.gif)
 
-*Training mode in Eden with Training Modpack loaded (2026-10-14): the controller at the bottom left follows P1's buttons and sticks.*
+*Training mode in Eden with v0.1.3 and Training Modpack loaded (2026-10-28): the controller sits to the right of the CPU's HUD and follows P1's buttons and sticks.*
 
 ![Overlay in a match](docs/media/gamepad-match.gif)
 
-*A 1v1 stock match against a CPU in Eden (2026-10-14), starting with a stock loss and respawn: the overlay sits near the bottom centre, beside P1's HUD.*
-
-These clips show the older placement. **v0.1.3** moves the Training and lobby
-practice overlay to the right of the CPU's bottom HUD; match placement is unchanged.
+*A 1v1 stock match against a CPU in Eden (2026-10-14), starting with a stock loss and respawn: the overlay sits near the bottom centre, beside P1's HUD. v0.1.3 left match placement unchanged.*
 
 Both clips were recorded in Eden build `9a5d704c9c` with Smash 13.0.5 and
-Training Modpack loaded. Cropped stills of the same scenes are in
-`docs/media/gamepad-training.png` and `docs/media/gamepad-match.png`. The clips
-use the optional `switch_pro_alt_builtin` skin generated from RetroSpy's
-`switch-pro-alt` art; a default install shows the simpler square-pane
-`default_simple` skin in the same place.
+Training Modpack loaded, using Eden's recorder at 12 fps and 640 pixels wide.
+The Training clip runs the v0.1.3 release with the Training Modpack build from
+the tested Switch. That build ran in Eden with `libnro_hook.nro` and
+`libparam_hook.nro` in the plugin folder, as on the Switch. Without
+`libparam_hook.nro` it crashed at startup.
+
+Cropped stills of the same scenes are in `docs/media/gamepad-training.png` and
+`docs/media/gamepad-match.png`. The clips use the optional
+`switch_pro_alt_builtin` skin generated from RetroSpy's `switch-pro-alt` art. A
+default install shows the simpler square-pane `default_simple` skin in the same
+place.
 
 ## Status
 
