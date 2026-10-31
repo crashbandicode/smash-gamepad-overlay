@@ -15,6 +15,7 @@ use crate::input::{
 };
 use crate::logger::trace;
 use crate::pane_utils::cstr_bytes_to_str;
+use crate::pilot_map::write_cpu_label;
 use crate::ui::{find_pane_by_name, set_textbox_text, TEXTBOX_TEXT_CAP};
 
 #[derive(Debug, Copy, Clone)]
@@ -234,6 +235,9 @@ fn write_or_clear(line: &mut DebugLine, write_line: impl FnOnce(&mut DebugLine) 
 }
 
 fn write_p1_header(line: &mut DebugLine, snapshot: &ControllerSnapshot) -> fmt::Result {
+    if let Some(level) = snapshot.cpu_level {
+        return write_cpu_label(level, line);
+    }
     write!(
         line,
         "P1 {} {}",

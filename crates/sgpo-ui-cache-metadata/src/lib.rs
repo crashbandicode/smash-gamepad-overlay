@@ -14,6 +14,10 @@
 pub mod scene;
 pub mod userdata_probe;
 
+#[cfg(test)]
+#[path = "../../../src/pilot_map.rs"]
+mod pilot_overlay_translation;
+
 /// Matches `MAX_RESOLVED_SKIN_ELEMENTS` in the plugin.
 pub const MAX_WATCHED_CHILDREN: usize = 32;
 

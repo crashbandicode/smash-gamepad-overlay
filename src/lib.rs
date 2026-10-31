@@ -8,6 +8,7 @@ mod logger;
 mod offsets;
 mod pane_lifetime;
 mod pane_utils;
+mod pilot_map;
 mod scene;
 mod skin;
 mod ui;
