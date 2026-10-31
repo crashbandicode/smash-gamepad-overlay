@@ -68,9 +68,18 @@ it does not change the game's mode or enable Training Modpack features. Existing
 patched layouts and skin configs remain compatible. See the release notes for
 the patch's validation coverage.
 
+Release `v0.2.0` shows the CPU's inputs while the `ssbu-cpu-pilot` plugin's CPU
+drives P1. When that plugin's `ssbu_cpu_pilot_state_v1` export reports an armed
+CPU level, the overlay draws the CPU's last input instead of the physical pad:
+Attack as A, Special as B, Jump as X, Shield as R, Grab as ZR, taunts as the
+D-pad, and the left stick; the DebugText header reads `CPU Lv<n>`. Without
+that plugin, or while P1 is the player, nothing changes. In Eden on
+2026-10-31 (ssbu-cpu-pilot runs g01–g04), both draw paths followed the CPU with
+the pad idle and followed the pad again afterwards. Not run on a Switch.
+
 The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exercised
 the non-draw HUD path. The standalone `Layout::Draw` path used without Training
-Modpack has not been rechecked on 13.0.5.
+Modpack ran in Eden on 13.0.5 on 2026-10-31 (g01, above), not on a Switch.
 
 The plugin is built with `cargo-skyline` 3.5.0 against the `skyline` crate
 0.6.0 (`Cargo.toml` and `Cargo.lock`). Hook offsets target Smash display
