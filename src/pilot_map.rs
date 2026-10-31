@@ -9,10 +9,12 @@
 //!
 //! Face-button choice: the buttons a default Pro Controller player presses.
 //! `ATTACK_RAW` and `SMASH` fold into A, `SPECIAL_RAW` and `SPECIAL_RAW2`
-//! fold into B, and `JUMP_MINI` and `FLICK_JUMP` fold into X, so a flag that
-//! means that action still lights the same button. `CSTICK_ON` and
-//! `STOCK_SHARE` are ignored: the c-stick is the right-stick axes (the CPU
-//! leaves them at 0), and stock share is not a default Pro face button.
+//! fold into B, and `JUMP_MINI` folds into X, so a flag that means that action
+//! still lights the same button. `FLICK_JUMP`, `CSTICK_ON` and `STOCK_SHARE`
+//! are ignored: `FLICK_JUMP` (0x8000) is set in the mapped input even at rest
+//! (Eden g01/g02, 2026-10-31: X lit in every CPU frame while it was mapped),
+//! the c-stick is the right-stick axes (the CPU leaves them at 0), and stock
+//! share is not a default Pro face button.
 
 use std::fmt::{self, Write};
 
@@ -35,6 +37,9 @@ const SPECIAL_RAW: u32 = 0x800;
 const APPEAL_LW: u32 = 0x1000;
 const APPEAL_SL: u32 = 0x2000;
 const APPEAL_SR: u32 = 0x4000;
+/// Set even at rest; deliberately not mapped (see the module docs). Kept for
+/// the test that proves it lights nothing.
+#[cfg(test)]
 const FLICK_JUMP: u32 = 0x8000;
 const GUARD_HOLD: u32 = 0x1_0000;
 const SPECIAL_RAW2: u32 = 0x2_0000;
@@ -95,7 +100,7 @@ fn pro_buttons(semantic: u32) -> u64 {
     if semantic & (SPECIAL | SPECIAL_RAW | SPECIAL_RAW2) != 0 {
         buttons |= HID_B;
     }
-    if semantic & (JUMP | JUMP_MINI | FLICK_JUMP) != 0 {
+    if semantic & (JUMP | JUMP_MINI) != 0 {
         buttons |= HID_X;
     }
     if semantic & (GUARD | GUARD_HOLD) != 0 {
@@ -165,11 +170,19 @@ mod tests {
     }
 
     #[test]
-    fn raw_smash_and_flick_fold_into_the_same_buttons() {
-        let folded =
-            ATTACK_RAW | SPECIAL_RAW | SPECIAL_RAW2 | SMASH | JUMP_MINI | FLICK_JUMP | GUARD_HOLD;
+    fn raw_smash_and_mini_jump_fold_into_the_same_buttons() {
+        let folded = ATTACK_RAW | SPECIAL_RAW | SPECIAL_RAW2 | SMASH | JUMP_MINI | GUARD_HOLD;
         let sample = sample_from_pilot(pack(folded, 0, 0, 0, 0), 1).unwrap();
         assert_eq!(sample.buttons, HID_A | HID_B | HID_X | HID_R);
+    }
+
+    #[test]
+    fn the_at_rest_flick_jump_flag_lights_nothing() {
+        // The mapped input carries FLICK_JUMP even with no action pressed.
+        let sample = sample_from_pilot(pack(FLICK_JUMP, 0, 0, 0, 0), 1).unwrap();
+        assert_eq!(sample.buttons, 0);
+        let attack = sample_from_pilot(pack(FLICK_JUMP | 0x1, 0, 0, 0, 0), 1).unwrap();
+        assert_eq!(attack.buttons, HID_A);
     }
 
     #[test]
