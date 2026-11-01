@@ -14,10 +14,6 @@
 pub mod scene;
 pub mod userdata_probe;
 
-#[cfg(test)]
-#[path = "../../../src/pilot_map.rs"]
-mod pilot_overlay_translation;
-
 /// Matches `MAX_RESOLVED_SKIN_ELEMENTS` in the plugin.
 pub const MAX_WATCHED_CHILDREN: usize = 32;
 
@@ -455,7 +451,10 @@ mod tests {
 
     #[test]
     fn classify_does_not_mutate_before_apply() {
-        let mut slots = [Some(child_entry(0x1000, 0x2000)), Some(child_entry(0x3000, 0x4000))];
+        let mut slots = [
+            Some(child_entry(0x1000, 0x2000)),
+            Some(child_entry(0x3000, 0x4000)),
+        ];
         let class = classify_finalize(&slots, 0x2000, |watched| *watched);
         assert_eq!(class, FinalizeClass::EvictMatching);
         assert!(slots[0].is_some());
@@ -474,7 +473,10 @@ mod tests {
 
     #[test]
     fn same_thread_evicts_only_the_matching_entry() {
-        let mut slots = [Some(child_entry(0x1000, 0x2000)), Some(child_entry(0x3000, 0x4000))];
+        let mut slots = [
+            Some(child_entry(0x1000, 0x2000)),
+            Some(child_entry(0x3000, 0x4000)),
+        ];
         let touch = retire(&mut slots, 0x1000);
         assert_eq!(touch.class, FinalizeClass::EvictMatching);
         assert!(slots[0].is_none());

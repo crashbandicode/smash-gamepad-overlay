@@ -1,19 +1,32 @@
 use std::fmt::{self, Write};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::OnceLock;
-use std::time::Instant;
 
 use skyline::nn::hid;
-use skyline::nn::ro::LookupSymbol;
 
 use crate::config::{
     GC_TRIGGER_AXIS_MAX, NPAD_ID_HANDHELD, NPAD_ID_NO1, NPAD_STYLE_FULL_KEY, NPAD_STYLE_GAMECUBE,
     NPAD_STYLE_HANDHELD, NPAD_STYLE_JOY_DUAL, NPAD_STYLE_JOY_LEFT, NPAD_STYLE_JOY_RIGHT,
     STICK_AXIS_MAX, VISUAL_TRIGGER_ACTIVE_THRESHOLD,
 };
-use crate::pilot_map::{self, PilotSample};
+use crate::final_input;
 
-const _: () = assert!(STICK_AXIS_MAX == pilot_map::HID_STICK_MAX as f32);
+const _: () = assert!(STICK_AXIS_MAX as i32 == sgpo_final_input::HID_STICK_MAX);
+const _: () = assert!(VISUAL_TRIGGER_ACTIVE_THRESHOLD == sgpo_final_input::GC_TRIGGER_LIGHT);
+const _: () = assert!(BUTTON_A == sgpo_final_input::HID_A);
+const _: () = assert!(BUTTON_B == sgpo_final_input::HID_B);
+const _: () = assert!(BUTTON_X == sgpo_final_input::HID_X);
+const _: () = assert!(BUTTON_Y == sgpo_final_input::HID_Y);
+const _: () = assert!(BUTTON_LSTICK == sgpo_final_input::HID_LSTICK);
+const _: () = assert!(BUTTON_RSTICK == sgpo_final_input::HID_RSTICK);
+const _: () = assert!(BUTTON_L == sgpo_final_input::HID_L);
+const _: () = assert!(BUTTON_R == sgpo_final_input::HID_R);
+const _: () = assert!(BUTTON_ZL == sgpo_final_input::HID_ZL);
+const _: () = assert!(BUTTON_ZR == sgpo_final_input::HID_ZR);
+const _: () = assert!(BUTTON_PLUS == sgpo_final_input::HID_PLUS);
+const _: () = assert!(BUTTON_MINUS == sgpo_final_input::HID_MINUS);
+const _: () = assert!(BUTTON_DLEFT == sgpo_final_input::HID_DLEFT);
+const _: () = assert!(BUTTON_DUP == sgpo_final_input::HID_DUP);
+const _: () = assert!(BUTTON_DRIGHT == sgpo_final_input::HID_DRIGHT);
+const _: () = assert!(BUTTON_DDOWN == sgpo_final_input::HID_DDOWN);
 
 const BUTTON_A: u64 = 1 << 0;
 const BUTTON_B: u64 = 1 << 1;
@@ -44,8 +57,6 @@ pub(crate) struct ControllerSnapshot {
     pub left_stick: (i32, i32),
     pub right_stick: (i32, i32),
     pub gc_triggers: Option<(u32, u32)>,
-    /// `Some(level)` when ssbu-cpu-pilot is driving P1. Absent for a physical pad.
-    pub cpu_level: Option<u8>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -235,101 +246,8 @@ impl ControllerViewState {
 }
 
 pub(crate) unsafe fn poll_p1_controller() -> Option<ControllerSnapshot> {
-    if let Some(snapshot) = poll_cpu_pilot() {
-        return Some(snapshot);
-    }
-    poll_controller(NPAD_ID_NO1).or_else(|| poll_controller(NPAD_ID_HANDHELD))
-}
-
-/// C ABI of `ssbu_cpu_pilot_state_v1`. `last_input` is 8-byte aligned.
-#[repr(C)]
-struct PilotStateV1 {
-    abi_version: u32,
-    #[allow(dead_code)]
-    settings: u32,
-    armed_level: u8,
-    _reserved: [u8; 7],
-    last_input: u64,
-}
-
-const _: () = assert!(core::mem::size_of::<PilotStateV1>() == 24);
-
-type PilotStateFn = unsafe extern "C" fn(*mut PilotStateV1) -> bool;
-
-static PILOT_STATE_FN: AtomicUsize = AtomicUsize::new(0);
-static PILOT_LOOKUP_AFTER_MS: AtomicU64 = AtomicU64::new(0);
-static PILOT_LOOKUP_EPOCH: OnceLock<Instant> = OnceLock::new();
-
-unsafe fn poll_cpu_pilot() -> Option<ControllerSnapshot> {
-    let state_fn = pilot_state_fn()?;
-    let mut state = PilotStateV1 {
-        abi_version: 0,
-        settings: 0,
-        armed_level: 0,
-        _reserved: [0; 7],
-        last_input: 0,
-    };
-    if !state_fn(&mut state) || state.abi_version != 1 || state.armed_level == 0 {
-        return None;
-    }
-    let sample = pilot_map::sample_from_pilot(state.last_input, state.armed_level)?;
-    Some(snapshot_from_pilot(sample))
-}
-
-fn snapshot_from_pilot(sample: PilotSample) -> ControllerSnapshot {
-    ControllerSnapshot {
-        npad_id: NPAD_ID_NO1,
-        style_flags: NPAD_STYLE_FULL_KEY,
-        buttons: sample.buttons,
-        left_stick: sample.left_stick,
-        right_stick: sample.right_stick,
-        gc_triggers: None,
-        cpu_level: Some(sample.cpu_level),
-    }
-}
-
-/// Resolved once. A miss is tried again at most once per second.
-unsafe fn pilot_state_fn() -> Option<PilotStateFn> {
-    let cached = PILOT_STATE_FN.load(Ordering::Acquire);
-    if cached != 0 {
-        return Some(pilot_fn_at(cached));
-    }
-    let now = pilot_lookup_ms();
-    let due = PILOT_LOOKUP_AFTER_MS.load(Ordering::Acquire);
-    if now < due {
-        return None;
-    }
-    if PILOT_LOOKUP_AFTER_MS
-        .compare_exchange(
-            due,
-            now.saturating_add(1_000),
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        )
-        .is_err()
-    {
-        return None;
-    }
-    let mut address = 0usize;
-    LookupSymbol(&mut address, c"ssbu_cpu_pilot_state_v1".as_ptr().cast());
-    if address == 0 {
-        return None;
-    }
-    PILOT_STATE_FN.store(address, Ordering::Release);
-    Some(pilot_fn_at(address))
-}
-
-unsafe fn pilot_fn_at(address: usize) -> PilotStateFn {
-    core::mem::transmute::<usize, PilotStateFn>(address)
-}
-
-fn pilot_lookup_ms() -> u64 {
-    let start = *PILOT_LOOKUP_EPOCH.get_or_init(Instant::now);
-    let millis = Instant::now()
-        .checked_duration_since(start)
-        .map(|elapsed| elapsed.as_millis())
-        .unwrap_or(0);
-    u64::try_from(millis).unwrap_or(u64::MAX)
+    let snapshot = poll_controller(NPAD_ID_NO1).or_else(|| poll_controller(NPAD_ID_HANDHELD))?;
+    Some(final_input::apply(snapshot))
 }
 
 unsafe fn poll_controller(npad_id: u32) -> Option<ControllerSnapshot> {
@@ -348,7 +266,6 @@ unsafe fn poll_controller(npad_id: u32) -> Option<ControllerSnapshot> {
             left_stick: (state.LStickX, state.LStickY),
             right_stick: (state.RStickX, state.RStickY),
             gc_triggers: Some((state.LTrigger, state.RTrigger)),
-            cpu_level: None,
         });
     }
 
@@ -368,7 +285,6 @@ unsafe fn poll_controller(npad_id: u32) -> Option<ControllerSnapshot> {
         left_stick: (state.LStickX, state.LStickY),
         right_stick: (state.RStickX, state.RStickY),
         gc_triggers: None,
-        cpu_level: None,
     })
 }
 

@@ -2,13 +2,13 @@
 
 mod config;
 mod debug_text;
+mod final_input;
 mod hud;
 mod input;
 mod logger;
 mod offsets;
 mod pane_lifetime;
 mod pane_utils;
-mod pilot_map;
 mod scene;
 mod skin;
 mod ui;
@@ -73,6 +73,7 @@ pub fn main() {
     reset_trace_file();
     reload_active_skin_config("startup");
     let smash_display_version = display_version();
+    crate::final_input::install(&smash_display_version);
     log_startup_banner(StartupBanner {
         build_id: build_info::BUILD_ID,
         git_change_count: build_info::GIT_CHANGE_COUNT,
