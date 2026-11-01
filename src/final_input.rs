@@ -187,7 +187,7 @@ pub(crate) unsafe fn apply(snapshot: ControllerSnapshot) -> ControllerSnapshot {
             }
         }
         Err(miss) => {
-            observe_miss(snapshot.npad_id, miss);
+            observe_miss(snapshot.npad_id, miss); #[cfg(feature = "diag")] unsafe { diag::observe_controllers(&snapshot) };
             snapshot
         }
     }
@@ -418,6 +418,7 @@ mod diag {
     static MISSED: AtomicBool = AtomicBool::new(false);
 
     pub(super) fn observe(snapshot: &ControllerSnapshot, found: &Found) {
+        unsafe { observe_controllers(snapshot) };
         MISSED.store(false, Ordering::Relaxed);
         let diff = snapshot.buttons ^ found.shown.buttons;
         let triggers_differ = snapshot.gc_triggers != found.shown.gc_triggers;
@@ -480,14 +481,14 @@ mod diag {
     }
 
     struct StackLine {
-        buf: [u8; 180],
+        buf: [u8; 192],
         len: usize,
     }
 
     impl StackLine {
         fn new() -> Self {
             Self {
-                buf: [0; 180],
+                buf: [0; 192],
                 len: 0,
             }
         }
@@ -507,6 +508,200 @@ mod diag {
             self.buf[self.len..next].copy_from_slice(bytes);
             self.len = next;
             Ok(())
+        }
+    }
+
+    impl StackLine {
+        fn write_hex(&mut self, bytes: &[u8]) {
+            const HEX: &[u8; 16] = b"0123456789abcdef";
+            for byte in bytes {
+                let pair = [HEX[usize::from(byte >> 4)], HEX[usize::from(byte & 0x0f)]];
+                if self
+                    .write_str(core::str::from_utf8(&pair).unwrap_or(""))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Last controller-slot set logged from the poll path. Compared in full so a
+    /// change of any field, including one mapping byte, logs again.
+    struct SlotCache {
+        lock: std::sync::atomic::AtomicBool,
+        filled: std::sync::atomic::AtomicBool,
+        record: std::cell::UnsafeCell<SlotRecord>,
+    }
+
+    unsafe impl Sync for SlotCache {}
+
+    static SLOT_CACHE: SlotCache = SlotCache {
+        lock: std::sync::atomic::AtomicBool::new(false),
+        filled: std::sync::atomic::AtomicBool::new(false),
+        record: std::cell::UnsafeCell::new(SlotRecord::EMPTY),
+    };
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    struct SlotRecord {
+        hid_npad: u32,
+        hid_style: u32,
+        use_table: u8,
+        count: u8,
+        matched: Option<u32>,
+        slots: [CtrlSlot; 8],
+        mapping: [u8; 0x50],
+    }
+
+    impl SlotRecord {
+        const EMPTY: Self = Self {
+            hid_npad: 0,
+            hid_style: 0,
+            use_table: 0,
+            count: 0,
+            matched: None,
+            slots: [CtrlSlot::EMPTY; 8],
+            mapping: [0; 0x50],
+        };
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    struct CtrlSlot {
+        player: u32,
+        index: i32,
+        style: u32,
+        field_a0: u32,
+        field_c4: u32,
+        valid: u8,
+    }
+
+    impl CtrlSlot {
+        const EMPTY: Self = Self {
+            player: 0,
+            index: 0,
+            style: 0,
+            field_a0: 0,
+            field_c4: 0,
+            valid: 0,
+        };
+    }
+
+    pub(super) unsafe fn observe_controllers(snapshot: &ControllerSnapshot) {
+        let base = skyline::hooks::getRegionAddress(skyline::hooks::Region::Text) as usize;
+        if base == 0 {
+            return;
+        }
+        let Some(obj) = super::read_ptr(base + super::MANAGER_GLOBAL) else {
+            return;
+        };
+        if super::read_u64(obj) != Some((base + super::MANAGER_VTABLE) as u64) {
+            return;
+        }
+        let Some(mode) = super::read_ptr(base + super::CONTROLLER_MODE) else {
+            return;
+        };
+        let use_table = super::read_u8(mode + 8) != 0;
+        let mut record = SlotRecord::EMPTY;
+        record.hid_npad = snapshot.npad_id;
+        record.hid_style = snapshot.style_flags;
+        record.use_table = u8::from(use_table);
+        for player in 0..8u32 {
+            let Some(slot) = read_ctrl_slot(base, obj, player, use_table) else {
+                continue;
+            };
+            if record.matched.is_none()
+                && slot.field_c4 == snapshot.npad_id
+                && super::style_matches_hid(slot.style, snapshot.style_flags)
+            {
+                record.matched = Some(player);
+                let mapping_addr = obj + 0x18 + (player as usize) * super::MAPPING_LEN;
+                std::ptr::copy_nonoverlapping(
+                    mapping_addr as *const u8,
+                    record.mapping.as_mut_ptr(),
+                    super::MAPPING_LEN,
+                );
+            }
+            let next = usize::from(record.count);
+            if next >= record.slots.len() {
+                break;
+            }
+            record.slots[next] = slot;
+            record.count = record.count.saturating_add(1);
+        }
+        if !slot_changed(&record) {
+            return;
+        }
+        emit_slots(&record);
+    }
+
+    unsafe fn read_ctrl_slot(base: usize, obj: usize, player: u32, use_table: bool) -> Option<CtrlSlot> {
+        let controller_index = super::read_i32(obj + 0x298 + (player as usize) * 4)?;
+        if !(0..=9).contains(&controller_index) {
+            return None;
+        }
+        let struct_ptr = if use_table {
+            super::read_ptr(base + super::CONTROLLER_TABLE + (controller_index as usize) * 8)?
+        } else {
+            base + super::CONTROLLER_FALLBACK
+        };
+        let controller = super::read_ptr(struct_ptr + 0x10)?;
+        Some(CtrlSlot {
+            player,
+            index: controller_index,
+            style: super::read_u32(controller + 0x9c)?,
+            field_a0: super::read_u32(controller + 0xa0)?,
+            field_c4: super::read_u32(controller + 0xc4)?,
+            valid: super::read_u8(controller + 0xb8),
+        })
+    }
+
+    fn slot_changed(record: &SlotRecord) -> bool {
+        if SLOT_CACHE.lock.swap(true, Ordering::AcqRel) {
+            return false;
+        }
+        let changed = !SLOT_CACHE.filled.load(Ordering::Relaxed)
+            || unsafe { &*SLOT_CACHE.record.get() != record };
+        if changed {
+            unsafe { *SLOT_CACHE.record.get() = *record };
+            SLOT_CACHE.filled.store(true, Ordering::Relaxed);
+        }
+        SLOT_CACHE.lock.store(false, Ordering::Release);
+        changed
+    }
+
+    fn emit_slots(record: &SlotRecord) {
+        if record.count == 0 {
+            let mut line = StackLine::new();
+            let _ = write!(
+                line,
+                "final-input ctrl none use_table={} hid_npad={:#x} hid_style={:#x}",
+                record.use_table, record.hid_npad, record.hid_style
+            );
+            trace(line.as_str());
+            return;
+        }
+        for slot in &record.slots[..usize::from(record.count)] {
+            let mut line = StackLine::new();
+            let _ = write!(
+                line,
+                "final-input ctrl p={} idx={} use_table={} style={:#x} a0={:#x} c4={:#x} b8=0x{:02x} hid_npad={:#x} hid_style={:#x}",
+                slot.player,
+                slot.index,
+                record.use_table,
+                slot.style,
+                slot.field_a0,
+                slot.field_c4,
+                slot.valid,
+                record.hid_npad,
+                record.hid_style
+            );
+            trace(line.as_str());
+        }
+        if let Some(player) = record.matched {
+            let mut line = StackLine::new();
+            let _ = write!(line, "final-input map p={player} ");
+            line.write_hex(&record.mapping);
+            trace(line.as_str());
         }
     }
 }
