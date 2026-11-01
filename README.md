@@ -7,8 +7,10 @@
 
 Rust Skyline plugin for Super Smash Bros. Ultimate that draws Player 1's
 controller inputs inside the game, so a capture card records them with the
-match. It polls P1's raw controller state and updates a set of hidden Smash UI
-panes that a patched `info_melee/layout.arc` adds to the match HUD.
+match. It shows what the game received for the player on P1's controller this
+frame, after any other plugin (a CPU pilot, input playback) has written it, on
+that player's own button layout, and updates a set of hidden Smash UI panes
+that a patched `info_melee/layout.arc` adds to the match HUD.
 
 ![Overlay in Training](docs/media/gamepad-training.gif)
 
@@ -76,6 +78,44 @@ D-pad, and the left stick; the DebugText header reads `CPU Lv<n>`. Without
 that plugin, or while P1 is the player, nothing changes. In Eden on
 2026-10-31 (ssbu-cpu-pilot runs g01–g04), both draw paths followed the CPU with
 the pad idle and followed the pad again afterwards. Not run on a Switch.
+
+Release `v0.3.0` replaces that bridge and no longer knows about any other
+plugin. Each frame the overlay reads the final input the game published for
+the player on the polled controller (after every plugin has written it) and
+that player's button mapping, and draws them on the player's own layout:
+
+- A pressed button lights when the action it is mapped to reached the game.
+- An action that no pressed button explains (a CPU pilot, input playback)
+  lights the button the player's controls map to it (first of X, Y, A, B, R,
+  ZR, L, ZL, then the D-pad).
+- Each stick shows the physical stick when the game's stick agrees with it,
+  otherwise the game's.
+- Buttons that are not game actions (Plus, Minus, stick clicks) and GC
+  trigger travel stay as read from the pad.
+
+Nine 64-byte code windows are checked at boot. On a mismatch, or when no
+player uses the polled controller, the overlay shows the raw pad as before.
+Two display rules were approved by the operator on 2026-11-01:
+
+- The stick agreement counts a game stick that is smaller and in the same
+  direction as the physical one as agreeing (plus one count for rounding),
+  because the game's deadzone curve is read from a parameter file and is not
+  modelled.
+- An A+B smash keeps both buttons lit, as before, although the game clears
+  Special for it.
+
+In Eden on Windows on 2026-11-01 (ssbu-cpu-pilot runs f01 with the diag build
+on the standalone path, and f02 with the release build and the Training Modpack
+on the non-draw path):
+
+- The overlay found P1 by its controller (`c4=0x0` equal to the polled npad).
+- Host presses lit as held, and stick up lit no button.
+- With the ssbu-cpu-pilot plugin driving P1 and the pad idle, the overlay
+  followed the CPU on P1's own layout: the stick moved and B and R lit (that
+  save maps Special to B and Jump to R and ZR).
+- The overlay followed the pad again after P1 was handed back.
+
+Not run on a Switch; Training Modpack input playback was not tested.
 
 The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exercised
 the non-draw HUD path. The standalone `Layout::Draw` path used without Training
