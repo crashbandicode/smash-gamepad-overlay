@@ -1,9 +1,10 @@
 //! Which buttons and sticks the overlay draws from Smash's final mapped input.
 //!
 //! The game publishes one `MappedInputs` word per player after button mapping,
-//! tap jump's enable flag, A+B smash, and the right-stick mode. This crate
-//! turns that word, the player's mapping bytes, and the physical pad into the
-//! HID-shaped view the overlay already draws.
+//! A+B smash, and the right-stick mode. Tap jump only sets `FLICK_JUMP`; it
+//! does not put `JUMP` in that word. This crate turns the word, the player's
+//! mapping bytes, and the physical pad into the HID-shaped view the overlay
+//! already draws.
 //!
 //! Injected actions light one physical button, in this order: X, Y, A, B, R,
 //! ZR, L, ZL, D-pad up, D-pad left, D-pad right, D-pad down. The first button
@@ -74,11 +75,6 @@ const KIND_APPEAL_LW: u8 = 0xC;
 const STYLE_LEFT: u32 = 3;
 const STYLE_RIGHT: u32 = 4;
 const STYLE_GC: u32 = 7;
-
-/// Same magnitude the overlay already uses to call a stick "moved".
-const STICK_MOVED: f32 = 0.08;
-/// Fighter-space Y at or above this is "stick up" for tap jump.
-const TAP_JUMP_Y: f32 = 0.8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Pad {
@@ -242,13 +238,8 @@ fn explained_bits(
     if absmash && final_input.buttons & SMASH != 0 {
         mask |= SMASH;
     }
-    if tap_jump_on(live) && stick_is_up(physical, live, final_input) {
-        mask |= JUMP | JUMP_MINI;
-    }
-    if cstick_explains(physical, live, final_input.buttons) {
-        if let Some(kind) = cstick_kind(live) {
-            mask |= produced_bits(kind, Pad::A);
-        }
+    if let Some(kind) = cstick_explains(physical, live, final_input) {
+        mask |= produced_bits(kind, Pad::A);
     }
     Explained { mask, absmash }
 }
@@ -424,35 +415,31 @@ fn raise_injected_trigger(pad: Option<Pad>, triggers: &mut Option<(u32, u32)>) {
     }
 }
 
-fn cstick_explains(physical: &Physical, live: &LiveController, final_buttons: u32) -> bool {
-    if final_buttons & CSTICK_ON == 0 {
-        return false;
+/// C-stick mode explains its action when `CSTICK_ON` is set and the physical
+/// right stick accounts for the published right stick.
+///
+/// `0x1752870` gates that bit on `x² + y²` of the post-curve right-stick i8s
+/// compared with a parameter-file byte (`ldrb` / `cmp` / `b.gt` at
+/// `0x17530e4`). That byte is not an instruction immediate, so the explanation
+/// uses the same agreement rule as the stick draw.
+fn cstick_explains(
+    physical: &Physical,
+    live: &LiveController,
+    final_input: &FinalInput,
+) -> Option<u8> {
+    if final_input.buttons & CSTICK_ON == 0 {
+        return None;
     }
-    let Some(kind) = cstick_kind(live) else {
-        return false;
-    };
-    produced_bits(kind, Pad::A) != 0 && stick_moved(physical.right_stick)
-}
-
-fn stick_moved(stick: (i32, i32)) -> bool {
-    let limit = (STICK_MOVED * HID_STICK_MAX as f32) as i64;
-    let x = i64::from(stick.0);
-    let y = i64::from(stick.1);
-    x * x + y * y >= limit * limit
-}
-
-fn stick_is_up(physical: &Physical, live: &LiveController, final_input: &FinalInput) -> bool {
-    let (_, y, _) = fighter_movement(live);
-    if y >= TAP_JUMP_Y || i32::from(final_input.left_stick.1) >= quantize_axis(TAP_JUMP_Y) {
-        return true;
+    let kind = cstick_kind(live)?;
+    if produced_bits(kind, Pad::A) == 0 {
+        return None;
     }
-    let (_, source) = movement_source(physical, live.style);
-    let axis = if live.style == STYLE_LEFT || live.style == STYLE_RIGHT {
-        source.0
+    let (expected, _, hid) = other_stick(live, physical);
+    if stick_follows(expected.0, expected.1, final_input.right_stick, hid) {
+        Some(kind)
     } else {
-        source.1
-    };
-    axis >= (TAP_JUMP_Y * HID_STICK_MAX as f32) as i32
+        None
+    }
 }
 
 fn unmapped_buttons(physical: &Physical, live: &LiveController) -> u64 {
@@ -589,10 +576,6 @@ fn cstick_kind(live: &LiveController) -> Option<u8> {
 
 fn absmash_on(live: &LiveController) -> bool {
     flag_byte(live, 0x0C, 0x1C, 0x28) != 0
-}
-
-fn tap_jump_on(live: &LiveController) -> bool {
-    flag_byte(live, 0x0D, 0x1D, 0x29) != 0
 }
 
 fn flag_byte(live: &LiveController, gc: usize, pro: usize, joy: usize) -> u8 {
@@ -783,7 +766,7 @@ mod tests {
             (HID_A, ATTACK | 0x8000, (0, 0)),
             (HID_X, JUMP | 0x8000, (0, 0)),
             (HID_X | HID_Y, JUMP | JUMP_MINI | 0x8000, (0, 0)),
-            (0, JUMP | 0x8000, (0, 30_000)),
+            (0, 0x8000, (0, 30_000)),
             (HID_A | HID_B, ATTACK | SMASH | 0x8000, (0, 0)),
             (0, SMASH | CSTICK_ON | 0x8000, (0, 0)),
             (HID_PLUS | HID_LSTICK, 0x8000, (0, 0)),
@@ -836,15 +819,18 @@ mod tests {
     }
 
     #[test]
-    fn tap_jump_does_not_light_a_button() {
+    fn stick_up_does_not_explain_jump() {
         let mapping = pro_default();
         let mut pad = physical(0);
         pad.left_stick = (0, 30_000);
         let mut game = live(5, mapping);
         game.left_stick = (0.0, 30_000.0 / HID_STICK_MAX as f32);
-        let mut word = final_buttons(JUMP | 0x8000);
+        let mut word = final_buttons(0x8000);
         word.left_stick = (0, quantize_axis(game.left_stick.1) as i8);
         assert_eq!(display(&pad, &game, &word).buttons, 0);
+
+        word.buttons = JUMP | 0x8000;
+        assert_eq!(display(&pad, &game, &word).buttons, HID_X);
 
         pad.buttons = HID_X;
         assert_eq!(display(&pad, &game, &word).buttons, HID_X);
@@ -900,6 +886,10 @@ mod tests {
             pad.right_stick = (0, 0);
             game.right_stick = (0.0, 0.0);
             word.right_stick = (0, 0);
+            let agreed_idle = display(&pad, &game, &word);
+            assert_eq!(agreed_idle.buttons & face, 0, "agreed idle mode {kind}");
+
+            word.right_stick = (80, 0);
             let injected = display(&pad, &game, &word);
             assert_eq!(injected.buttons, face, "injected mode {kind}");
         }
