@@ -13,9 +13,11 @@ crate-type = ["cdylib"]
 [features]
 default = []
 diagnostic-pane-userdata = []
+diag = []
 
 [dependencies]
 skyline = "0.6.0"
+sgpo-final-input = { path = "crates/sgpo-final-input" }
 sgpo-ui-cache-metadata = { path = "crates/sgpo-ui-cache-metadata" }
 
 [profile.dev]
@@ -26,5 +28,6 @@ panic = "abort"
 lto = true
 # Size over speed. The mapped NRO is the game-heap cost; fat LTO is already on.
 opt-level = "s"
+codegen-units = 1
 debug = true
 strip = "none"
