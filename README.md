@@ -121,15 +121,19 @@ The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exerci
 the non-draw HUD path. The standalone `Layout::Draw` path used without Training
 Modpack ran in Eden on 13.0.5 on 2026-10-31 (g01, above), not on a Switch.
 
-**Unreleased (branch `fix/trainingrooms-compat`, 2026-11-05): one render path.**
-Up to v0.3.0 the plugin chose its render path by looking for Training Modpack's
-NRO by file name. When a card replaced Training Modpack with TrainingRooms
-(`libtraining_rooms.nro`), the overlay switched to the standalone `Layout::Draw`
-path: full size at the bottom right in matches, a different place in Training.
-The plugin now always renders through the HUD path (P1's HUD parts) and no
-longer looks up other plugins or hooks `Layout::Draw`; the `DebugText` fallback
-and the `FORCE_TRAINING_MODPACK_COMPAT` flag are gone. See
-[How it renders](#how-it-renders).
+Release `v0.3.1` (2026-11-05) works with TrainingRooms (`libtraining_rooms.nro`)
+as well as the Training Modpack fork. Up to v0.3.0 the plugin used its HUD path
+only when it found Training Modpack's NRO by file name. When a card replaced
+Training Modpack with TrainingRooms, the overlay switched to its standalone
+`Layout::Draw` path: full size at the bottom right in matches, and a different
+place in Training. v0.3.1 always renders through the HUD path (P1's HUD
+parts), whatever else is installed, and no longer looks up other plugins or
+hooks `Layout::Draw`; the `DebugText` fallback and the
+`FORCE_TRAINING_MODPACK_COMPAT` flag are gone. See
+[How it renders](#how-it-renders). In Eden on 2026-11-05 (Smash 13.0.5,
+TrainingRooms 0.2.0-rc.2, run `ov-fix-tr-yoga`) the overlay sat beside P1's HUD
+in a 1v1 against a CPU and right of the CPU's HUD in Training, as with the
+fork. Not run on a Switch.
 
 The plugin is built with `cargo-skyline` 3.5.0 against the `skyline` crate
 0.6.0 (`Cargo.toml` and `Cargo.lock`). Hook offsets target Smash display
