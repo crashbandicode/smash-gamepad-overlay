@@ -127,11 +127,11 @@ fn training_mode_overlay_disabled() -> bool {
     let disabled = HIDE_TRAINING_GAMEPAD_PRESENT.load(Ordering::Relaxed);
     if disabled && !TRAINING_MODE_SUPPRESSED_LOGGED.swap(true, Ordering::Relaxed) {
         trace(&format!(
-            "Training Modpack is loaded and Smash is in training mode; SGPO overlay suppressed because {HIDE_TRAINING_GAMEPAD_FLAG_PATH} exists"
+            "Smash is in training mode; SGPO overlay suppressed because {HIDE_TRAINING_GAMEPAD_FLAG_PATH} exists"
         ));
     } else if !disabled && !TRAINING_MODE_ALLOWED_LOGGED.swap(true, Ordering::Relaxed) {
         trace(&format!(
-            "Training Modpack is loaded and Smash is in training mode; SGPO overlay enabled because {HIDE_TRAINING_GAMEPAD_FLAG_PATH} is absent"
+            "Smash is in training mode; SGPO overlay enabled because {HIDE_TRAINING_GAMEPAD_FLAG_PATH} is absent"
         ));
     }
 

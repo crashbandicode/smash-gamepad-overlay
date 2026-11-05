@@ -203,7 +203,7 @@ impl HudVisualRuntime {
 
             update_visual_skin_root_with_config(
                 resolved.skin_root,
-                resolved.layout_kind.overlay_config(training_mode),
+                &resolved.layout_kind.overlay_config(training_mode),
                 skin,
             );
             for (pane, element) in resolved.panes[..resolved.pane_count]
@@ -743,11 +743,6 @@ fn log_capture_miss(error: VisualRenderError) {
                 "regenerate and reinstall the layout with tools/sgpo_installer (README, Install)",
             );
         }
-        VisualRenderError::LifetimeGuardInactive => {
-            trace(
-                "non-draw HUD path did not cache panes because the pane finalize observer is inactive",
-            );
-        }
         VisualRenderError::UserAllocatedPane {
             skin_name,
             pane_name,
@@ -785,11 +780,6 @@ fn log_skin_swap_miss(
                 "non-draw HUD path could not swap cached skin '{previous_skin_name}' to '{requested_skin_name}' because pane '{}' was missing; keeping previous skin cache",
                 cstr_bytes_to_str(pane_name)
             ));
-        }
-        VisualRenderError::LifetimeGuardInactive => {
-            trace(
-                "non-draw HUD path did not swap cached skins because the pane finalize observer is inactive",
-            );
         }
         VisualRenderError::UserAllocatedPane { pane_name, .. } => {
             trace(&format!(
