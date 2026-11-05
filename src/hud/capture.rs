@@ -4,12 +4,9 @@ use skyline::nn::ui2d::Pane;
 use std::ptr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use crate::config::{
-    OverlayConfig, LAYOUT_GET_PANE_BY_NAME_OFFSET, MATCH_HUD_LAYOUT, OVERLAY_CONFIG,
-    P1_PARTS_PANE_NAME, PRACTICE_ROOT_OVERLAY_CONFIG, TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG,
-    TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG, TRAINING_MODE_P1_2_PARTS_OVERLAY_CONFIG,
-    TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG,
-};
+use sgpo_ui_cache_metadata::placement::{hud_placement, HudPart, Placement};
+
+use crate::config::{LAYOUT_GET_PANE_BY_NAME_OFFSET, MATCH_HUD_LAYOUT, P1_PARTS_PANE_NAME};
 use crate::logger::trace;
 use crate::skin::active_skin;
 
@@ -35,15 +32,13 @@ impl HudLayoutKind {
         }
     }
 
-    pub(super) fn overlay_config(self, training_mode: bool) -> &'static OverlayConfig {
-        match (self, training_mode) {
-            (Self::MatchRoot, true) => &PRACTICE_ROOT_OVERLAY_CONFIG,
-            (Self::MatchRoot, false) => &OVERLAY_CONFIG,
-            (Self::P1Parts, true) => &TRAINING_MODE_P1_PARTS_OVERLAY_CONFIG,
-            (Self::P1AltParts, true) => &TRAINING_MODE_P1_2_PARTS_OVERLAY_CONFIG,
-            (Self::P1Parts, false) => &TRAINING_COMPAT_P1_PARTS_OVERLAY_CONFIG,
-            (Self::P1AltParts, false) => &TRAINING_COMPAT_P1_2_PARTS_OVERLAY_CONFIG,
-        }
+    pub(super) fn overlay_config(self, training_mode: bool) -> Placement {
+        let part = match self {
+            Self::MatchRoot => HudPart::MatchRoot,
+            Self::P1Parts => HudPart::P1Parts,
+            Self::P1AltParts => HudPart::P1AltParts,
+        };
+        hud_placement(part, training_mode)
     }
 
     pub(super) fn is_match_root(self) -> bool {

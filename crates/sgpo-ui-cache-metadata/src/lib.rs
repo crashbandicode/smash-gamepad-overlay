@@ -11,6 +11,7 @@
 //! `userdata_probe` formats the diagnostic getter record. It does not read
 //! pane memory.
 
+pub mod placement;
 pub mod scene;
 pub mod userdata_probe;
 

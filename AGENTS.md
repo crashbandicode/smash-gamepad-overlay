@@ -31,8 +31,7 @@ Build target:
 Current baseline:
 - Visual overlay works with patched `info_melee/layout.arc`.
 - Buttons and analog sticks update from raw P1 HID state.
-- `DebugText` remains the fallback on the normal draw path.
-- Training Modpack compatibility uses a non-draw HUD path and requires the patched layout to be installed through ARCropolis as a data replacement.
+- One render path for every setup (since 2026-11-05): the non-draw HUD path in P1's HUD parts, which requires the patched layout installed through ARCropolis as a data replacement. Do not choose behaviour by other plugins' file names; that is how TrainingRooms broke the overlay.
 
 Near-term goals:
 - Keep the current A-marker/full square overlay as the stability baseline.

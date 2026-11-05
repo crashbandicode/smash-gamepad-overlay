@@ -121,6 +121,16 @@ The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exerci
 the non-draw HUD path. The standalone `Layout::Draw` path used without Training
 Modpack ran in Eden on 13.0.5 on 2026-10-31 (g01, above), not on a Switch.
 
+**Unreleased (branch `fix/trainingrooms-compat`, 2026-11-05): one render path.**
+Up to v0.3.0 the plugin chose its render path by looking for Training Modpack's
+NRO by file name. When a card replaced Training Modpack with TrainingRooms
+(`libtraining_rooms.nro`), the overlay switched to the standalone `Layout::Draw`
+path: full size at the bottom right in matches, a different place in Training.
+The plugin now always renders through the HUD path (P1's HUD parts) and no
+longer looks up other plugins or hooks `Layout::Draw`; the `DebugText` fallback
+and the `FORCE_TRAINING_MODPACK_COMPAT` flag are gone. See
+[How it renders](#how-it-renders).
+
 The plugin is built with `cargo-skyline` 3.5.0 against the `skyline` crate
 0.6.0 (`Cargo.toml` and `Cargo.lock`). Hook offsets target Smash display
 version 13.0.5 only; other game versions are not supported.
@@ -181,16 +191,14 @@ extracted `ui/layout/info/info_melee/info_melee/layout.arc` yourself, pass
 `--layout-arc /path/to/layout.arc` instead of `--data-arc`. The installer run
 above was checked on Linux on 2026-10-14; other host systems were not tested.
 
-Without the patched layout, the normal draw path falls back to `DebugText`,
-and with Training Modpack loaded the overlay stays inactive and logs the
-missing panes.
+Without the patched layout the overlay stays inactive and logs the missing
+panes.
 
-### 3. Training Modpack
+### 3. Training plugins
 
-Training Modpack is supported. When the plugin sees Training Modpack it skips
-its own `Layout::Draw` hook and uses a non-draw HUD path instead; that path
-needs the patched layout from step 2. The overlay shows in Training and in
-normal matches. To hide it only in Training mode, create this empty file:
+The overlay works the same with Training Modpack, TrainingRooms or no training
+plugin: it does not look for them. It shows in Training and in normal matches.
+To hide it only in Training mode, create this empty file:
 
 ```text
 sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD
@@ -237,21 +245,22 @@ Built-in skin names:
 The two RetroSpy-based skins need RetroSpy's skin folders when you generate the
 layout; see [Optional RetroSpy skins](#optional-retrospy-skins).
 
-## Training Modpack Details
+## How it renders
 
-Training Modpack hooks `Layout::Draw`, so this plugin does not. Compatibility
-mode turns on when the plugin finds the standard Training Modpack NRO path, any
-`*training*modpack*.nro` in the Skyline plugin folder, or this force flag:
+The plugin captures P1's HUD parts layout from the HUD info-alpha hook and
+drives live input updates from the scene-update hook. It does not hook
+`Layout::Draw`. Cached panes are tracked through a guarded `Pane::Finalize`
+observer so a pane is forgotten when the game frees it. A guarded
+`Layout::Finalize` observer only counts; it evicts nothing. Where the skin root
+sits in each captured layout is the host-tested table in
+`crates/sgpo-ui-cache-metadata/src/placement.rs`: beside P1's HUD in a match, to
+the right of the CPU's HUD in Training and waiting-room practice.
 
-```text
-sd:/ultimate/mods/smash-gamepad-overlay/FORCE_TRAINING_MODPACK_COMPAT
-```
-
-In this mode the plugin captures P1's HUD parts layout from the HUD info-alpha
-hook and drives live input updates from the scene-update hook. Cached panes are
-tracked through a guarded `Pane::Finalize` observer so a pane is forgotten when
-the game frees it. A guarded `Layout::Finalize` observer only counts; it evicts
-nothing.
+Up to v0.3.0 this was a "Training Modpack compatibility mode", chosen when the
+plugin found Training Modpack's NRO by file name; otherwise it hooked
+`Layout::Draw` and drew into the root `info_melee` layout (bottom right, full
+size). A training plugin under another name switched it to that path without
+notice, so the path choice was removed on 2026-11-05.
 
 ## Runtime Log
 
@@ -261,19 +270,23 @@ build ID, the Smash display version, hook resolution, the HUD capture/update
 status and the active display path. This is useful when `cargo skyline listen`
 shows nothing.
 
-If Training Modpack is loaded and the log says `could not find ... sgpo_root`,
-Smash is loading an unpatched `info_melee` layout. Regenerate and reinstall it
+If the log says `could not find ... sgpo_root`, Smash is loading an unpatched
+`info_melee` layout. Regenerate and reinstall it
 with the Rust installer (step 2 of [Install](#install), `tools/sgpo_installer`);
 the log's own hint still names the Python scripts.
 
 ## Known Limitations
 
-- Smash 13.0.5 only. The draw path and offsets are gated to that version.
+- Smash 13.0.5 only. The hooks and offsets are gated to that version.
 - The visual skins are rough programmer art made of cloned picture panes.
-- With Training Modpack the overlay lives in P1's HUD parts layout, so it
-  uses HUD-local coordinates. Training and lobby practice use a separate
-  placement to the right of the CPU's bottom HUD; normal matches keep their
-  existing P1-adjacent placement.
+- The overlay lives in P1's HUD parts layout, so it uses HUD-local
+  coordinates. Training and lobby practice use a separate placement to the
+  right of the CPU's bottom HUD; normal matches keep their P1-adjacent
+  placement.
+- Waiting-room practice (a Local Wireless or online room) draws the
+  `info_waiting` layout and not `info_melee`, so the overlay does not show
+  there. Eden on 2026-11-05 showed the same with Training Modpack and with
+  TrainingRooms.
 - A dropped layout can keep its last alpha until the game finalizes its panes.
 - A results-to-CSS crash seen once on Switch during the 2026-10-06
   investigation has no proven root cause. The pane lifetime fix in this
@@ -354,8 +367,10 @@ Add `--sd-zip <file> --no-sd-stage` to write an SD-root ZIP (NRO, layout and
 config) instead of copying to an SD root.
 
 The patcher adds a hidden `sgpo_root` with 24 visual panes to the root
-`info_melee` layout and to both player HUD parts layouts. The root panes serve
-the normal draw path; the player-parts panes serve the Training Modpack path.
+`info_melee` layout and to both player HUD parts layouts. The player-parts
+panes are the ones the plugin draws; the root panes served the `Layout::Draw`
+path removed on 2026-11-05 and stay in the layout so existing installs keep
+working.
 The layout notes in `docs/` were taken from a 13.0.4 dump; the 13.0.5 change
 was a code-offset update.
 

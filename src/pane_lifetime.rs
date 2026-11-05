@@ -1,13 +1,13 @@
-//! Shared Pane::Finalize observer for both UI pane caches.
+//! Pane::Finalize observer for the HUD pane cache.
 //!
 //! The inline hook reads `x0` as the address being finalized and does not
 //! change registers. Eviction compares integers and does not load the pane.
-//! Later scene-update and draw code may still write panes that have not been
+//! Later scene-update code may still write panes that have not been
 //! finalized. Only the eviction path is free of pane reads and writes.
 //!
 //! The finalizer itself does not allocate, format text, or write the log.
-//! Counters and a short ring are flushed from capture, scene update, draw,
-//! and match reset after those paths have released their cache locks.
+//! Counters and a short ring are flushed from capture, scene update and
+//! match reset after those paths have released their cache locks.
 
 use sgpo_ui_cache_metadata::CoverageWatch;
 use skyline::hooks::{getRegionAddress, InlineCtx, Region};
@@ -20,7 +20,6 @@ use crate::config::{
 };
 use crate::hud::finalize_retired_pane as finalize_hud_pane;
 use crate::logger::{hex_bytes, trace};
-use crate::visual::finalize_retired_pane as finalize_visual_pane;
 
 const SUPPORTED_DISPLAY_VERSION: &str = "13.0.5";
 const PROLOGUE_LEN: usize = 64;
@@ -34,7 +33,6 @@ static LAYOUT_GUARD_OK: AtomicBool = AtomicBool::new(false);
 static RETIRE_EPOCH: AtomicU64 = AtomicU64::new(0);
 static CAPTURE_THREAD: AtomicU64 = AtomicU64::new(0);
 static UPDATE_THREAD: AtomicU64 = AtomicU64::new(0);
-static RENDER_THREAD: AtomicU64 = AtomicU64::new(0);
 static LAST_FINALIZER_THREAD: AtomicU64 = AtomicU64::new(0);
 static THREAD_SWITCHES: AtomicU64 = AtomicU64::new(0);
 static THREAD_SWITCHES_INTERVAL: AtomicU64 = AtomicU64::new(0);
@@ -48,10 +46,8 @@ static MATCHING_EVICTIONS_INTERVAL: AtomicU64 = AtomicU64::new(0);
 static INACTIVE_LOGGED: AtomicBool = AtomicBool::new(false);
 static CAPTURE_LOGGED: AtomicBool = AtomicBool::new(false);
 static UPDATE_LOGGED: AtomicBool = AtomicBool::new(false);
-static RENDER_LOGGED: AtomicBool = AtomicBool::new(false);
 static CAPTURE_SWITCH_LOGGED: AtomicBool = AtomicBool::new(false);
 static UPDATE_SWITCH_LOGGED: AtomicBool = AtomicBool::new(false);
-static RENDER_SWITCH_LOGGED: AtomicBool = AtomicBool::new(false);
 static DIAG_LOCK: AtomicBool = AtomicBool::new(false);
 
 struct DiagState {
@@ -70,7 +66,6 @@ unsafe impl Sync for DiagCell {}
 struct RetireNote {
     address: u64,
     hud_slots: u8,
-    visual_slots: u8,
     thread: u64,
 }
 
@@ -79,7 +74,6 @@ static DIAG: DiagCell = DiagCell(UnsafeCell::new(DiagState {
     ring: [RetireNote {
         address: 0,
         hud_slots: 0,
-        visual_slots: 0,
         thread: 0,
     }; RING_CAP],
     ring_len: 0,
@@ -106,7 +100,6 @@ impl Drop for DiagGuard {
 pub(crate) enum RoutineKind {
     Capture,
     Update,
-    Render,
 }
 
 pub(crate) fn cache_access_enabled() -> bool {
@@ -202,8 +195,7 @@ pub(crate) fn on_pane_finalizing(retiring: u64) {
     note_thread_change(&LAST_FINALIZER_THREAD, thread);
 
     let hud = finalize_hud_pane(retiring);
-    let visual = finalize_visual_pane(retiring);
-    note_after_caches(retiring, hud.cleared, visual.cleared, thread);
+    note_after_caches(retiring, hud.cleared, thread);
 }
 
 /// Match start/end drops live cache metadata elsewhere. This log does not
@@ -250,7 +242,6 @@ pub(crate) fn flush_diagnostics(reset_reason: Option<&'static str>) {
         let mut notes = [RetireNote {
             address: 0,
             hud_slots: 0,
-            visual_slots: 0,
             thread: 0,
         }; RING_CAP];
         let pending = usize::from(diag.ring_len.saturating_sub(diag.ring_flushed));
@@ -285,8 +276,8 @@ pub(crate) fn flush_diagnostics(reset_reason: Option<&'static str>) {
     }
     for note in copied.notes.iter().take(copied.pending) {
         trace(&format!(
-            "pane finalize retired cached ui addr=0x{:x} hud_slots={} visual_slots={} thread=0x{:x}",
-            note.address, note.hud_slots, note.visual_slots, note.thread
+            "pane finalize retired cached ui addr=0x{:x} hud_slots={} thread=0x{:x}",
+            note.address, note.hud_slots, note.thread
         ));
     }
     if force || copied.log_overflow {
@@ -323,9 +314,9 @@ unsafe fn observe_layout_finalize(ctx: &InlineCtx) {
     LAST_LAYOUT_ADDRESS.store(ctx.registers[0].x(), Ordering::Relaxed);
 }
 
-fn note_after_caches(retiring: u64, hud_slots: usize, visual_slots: usize, thread: u64) {
-    if hud_slots + visual_slots > 0 {
-        let slots = (hud_slots + visual_slots) as u64;
+fn note_after_caches(retiring: u64, hud_slots: usize, thread: u64) {
+    if hud_slots > 0 {
+        let slots = hud_slots as u64;
         MATCHING_EVICTIONS.fetch_add(slots, Ordering::Relaxed);
         MATCHING_EVICTIONS_INTERVAL.fetch_add(slots, Ordering::Relaxed);
     }
@@ -333,11 +324,10 @@ fn note_after_caches(retiring: u64, hud_slots: usize, visual_slots: usize, threa
     let _guard = DiagGuard::acquire();
     let diag = unsafe { &mut *DIAG.0.get() };
     let _ = diag.watch.note_finalize(retiring);
-    if hud_slots + visual_slots > 0 && usize::from(diag.ring_len) < RING_CAP {
+    if hud_slots > 0 && usize::from(diag.ring_len) < RING_CAP {
         diag.ring[usize::from(diag.ring_len)] = RetireNote {
             address: retiring,
             hud_slots: u8::try_from(hud_slots).unwrap_or(u8::MAX),
-            visual_slots: u8::try_from(visual_slots).unwrap_or(u8::MAX),
             thread,
         };
         diag.ring_len = diag.ring_len.saturating_add(1);
@@ -346,14 +336,13 @@ fn note_after_caches(retiring: u64, hud_slots: usize, visual_slots: usize, threa
 
 fn snapshot_fields() -> String {
     format!(
-        "pane_finalize_total={} layout_finalize_total={} matching_evictions_total={} thread_switches={} capture_thread=0x{:x} update_thread=0x{:x} render_thread=0x{:x} last_finalizer=0x{:x} last_layout=0x{:x} pane_guard={} layout_guard={} retire_epoch={}",
+        "pane_finalize_total={} layout_finalize_total={} matching_evictions_total={} thread_switches={} capture_thread=0x{:x} update_thread=0x{:x} last_finalizer=0x{:x} last_layout=0x{:x} pane_guard={} layout_guard={} retire_epoch={}",
         PANE_FINALIZE_ENTRIES.load(Ordering::Relaxed),
         LAYOUT_FINALIZE_ENTRIES.load(Ordering::Relaxed),
         MATCHING_EVICTIONS.load(Ordering::Relaxed),
         THREAD_SWITCHES.load(Ordering::Relaxed),
         CAPTURE_THREAD.load(Ordering::Relaxed),
         UPDATE_THREAD.load(Ordering::Relaxed),
-        RENDER_THREAD.load(Ordering::Relaxed),
         LAST_FINALIZER_THREAD.load(Ordering::Relaxed),
         LAST_LAYOUT_ADDRESS.load(Ordering::Relaxed),
         PANE_GUARD_OK.load(Ordering::Relaxed),
@@ -392,7 +381,6 @@ fn note_routine_thread(kind: RoutineKind) {
     let (slot, first_logged, switch_logged) = match kind {
         RoutineKind::Capture => (&CAPTURE_THREAD, &CAPTURE_LOGGED, &CAPTURE_SWITCH_LOGGED),
         RoutineKind::Update => (&UPDATE_THREAD, &UPDATE_LOGGED, &UPDATE_SWITCH_LOGGED),
-        RoutineKind::Render => (&RENDER_THREAD, &RENDER_LOGGED, &RENDER_SWITCH_LOGGED),
     };
     let previous = slot.swap(thread, Ordering::Relaxed);
     if previous == 0 {
@@ -434,7 +422,6 @@ fn kind_name(kind: RoutineKind) -> &'static str {
     match kind {
         RoutineKind::Capture => "capture",
         RoutineKind::Update => "update",
-        RoutineKind::Render => "render",
     }
 }
 

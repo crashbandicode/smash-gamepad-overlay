@@ -1,5 +1,3 @@
-use std::fmt::{self, Write};
-
 use skyline::nn::hid;
 
 use crate::config::{
@@ -44,10 +42,6 @@ const BUTTON_DLEFT: u64 = 1 << 12;
 const BUTTON_DUP: u64 = 1 << 13;
 const BUTTON_DRIGHT: u64 = 1 << 14;
 const BUTTON_DDOWN: u64 = 1 << 15;
-const BUTTON_SL_LEFT: u64 = 1 << 24;
-const BUTTON_SR_LEFT: u64 = 1 << 25;
-const BUTTON_SL_RIGHT: u64 = 1 << 26;
-const BUTTON_SR_RIGHT: u64 = 1 << 27;
 
 #[derive(Debug, Copy, Clone)]
 pub(crate) struct ControllerSnapshot {
@@ -302,85 +296,6 @@ fn first_supported_standard_style(style_flags: u32) -> u32 {
     }
 
     NPAD_STYLE_FULL_KEY
-}
-
-pub(crate) fn npad_id_name(npad_id: u32) -> &'static str {
-    match npad_id {
-        NPAD_ID_NO1 => "No1",
-        NPAD_ID_HANDHELD => "Handheld",
-        _ => "Npad",
-    }
-}
-
-pub(crate) fn write_gc_trigger_text(
-    triggers: Option<(u32, u32)>,
-    out: &mut impl Write,
-) -> fmt::Result {
-    match triggers {
-        Some((left, right)) => write!(out, "GC LT {left:03} RT {right:03}"),
-        None => out.write_str("GC LT --- RT ---"),
-    }
-}
-
-// Order matters: GameCube reports first because its flag can coexist with
-// other style bits, and we want the most specific label.
-const STYLE_LABELS: &[(u32, &str)] = &[
-    (NPAD_STYLE_GAMECUBE, "GC"),
-    (NPAD_STYLE_FULL_KEY, "FullKey"),
-    (NPAD_STYLE_HANDHELD, "Handheld"),
-    (NPAD_STYLE_JOY_DUAL, "JoyDual"),
-    (NPAD_STYLE_JOY_LEFT, "JoyLeft"),
-    (NPAD_STYLE_JOY_RIGHT, "JoyRight"),
-];
-
-const BUTTON_LABELS: &[(u64, &str)] = &[
-    (BUTTON_A, "A"),
-    (BUTTON_B, "B"),
-    (BUTTON_X, "X"),
-    (BUTTON_Y, "Y"),
-    (BUTTON_LSTICK, "LS"),
-    (BUTTON_RSTICK, "RS"),
-    (BUTTON_L, "L"),
-    (BUTTON_R, "R"),
-    (BUTTON_ZL, "ZL"),
-    (BUTTON_ZR, "ZR"),
-    (BUTTON_PLUS, "+"),
-    (BUTTON_MINUS, "-"),
-    (BUTTON_DLEFT, "DL"),
-    (BUTTON_DUP, "DU"),
-    (BUTTON_DRIGHT, "DR"),
-    (BUTTON_DDOWN, "DD"),
-    (BUTTON_SL_LEFT, "SL-L"),
-    (BUTTON_SR_LEFT, "SR-L"),
-    (BUTTON_SL_RIGHT, "SL-R"),
-    (BUTTON_SR_RIGHT, "SR-R"),
-];
-
-pub(crate) fn style_name(style_flags: u32) -> &'static str {
-    STYLE_LABELS
-        .iter()
-        .find_map(|&(mask, name)| (style_flags & mask != 0).then_some(name))
-        .unwrap_or("Unknown")
-}
-
-pub(crate) fn write_button_names(buttons: u64, out: &mut impl Write) -> fmt::Result {
-    let mut any = false;
-
-    for &(mask, name) in BUTTON_LABELS {
-        if buttons & mask != 0 {
-            if any {
-                out.write_char(' ')?;
-            }
-            out.write_str(name)?;
-            any = true;
-        }
-    }
-
-    if !any {
-        out.write_char('-')?;
-    }
-
-    Ok(())
 }
 
 fn normalize_stick(stick: (i32, i32)) -> (f32, f32) {
