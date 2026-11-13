@@ -13,11 +13,13 @@ button layout, so inputs another plugin writes for P1 (a CPU pilot) show too.
 It needs a patched copy of the game's match HUD layout, which you generate from
 your own game dump (step 2 below).
 
-![Overlay in Training](docs/media/gamepad-training.gif)
+![Overlay in Training: Captain Falcon walks, attacks, jumps, shields and smashes, and the controller right of the CPU's HUD lights each input](docs/media/gamepad-training.gif)
 
-*Training in Eden, 2026-10-28, v0.1.3 release NRO (`50613206…`) with Training
-Modpack: the controller sits to the right of the CPU's HUD and follows P1's
-buttons and sticks.*
+*Training in Eden, 2026-11-13, the v0.3.1 release NRO (`5ab98bdf…`) with the
+`switch_pro_alt_builtin` skin config and a patched layout that has the RetroSpy
+skins: the controller sits to the right of the CPU's HUD and follows P1's
+buttons and sticks. Online Deluxe 0.10.5, Legal Stages + Counterpick and the
+tile cursor were also loaded; none of them draws here.*
 
 ![Overlay in a match](docs/media/gamepad-match.gif)
 
