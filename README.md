@@ -21,12 +21,12 @@ skins: the controller sits to the right of the CPU's HUD and follows P1's
 buttons and sticks. Online Deluxe 0.10.5, Legal Stages + Counterpick and the
 tile cursor were also loaded; none of them draws here.*
 
-![Overlay in a match](docs/media/gamepad-match.gif)
+![Overlay in a match: Sheik against a CPU Wolf on Yoshi's Story, from GO! on; the controller beside P1's HUD shows the stick as it tilts and the buttons as they are pressed](docs/media/gamepad-match.gif)
 
-*A 1v1 stock match against a CPU in Eden, 2026-10-14, build
-`c25-b17-31994bc-dirty…` (the v0.1.0 source), starting with a stock loss and
-respawn: the overlay sits near the bottom centre, beside P1's HUD. Match
-placement has not changed since.*
+*A 1v1 stock match against a level 9 CPU in Eden, 2026-11-13, the v0.3.1 release NRO (`5ab98bdf…`) with the
+`switch_pro_alt_builtin` skin config: the controller sits at the bottom centre, beside P1's HUD. 7.2 s from
+the countdown's GO!, one cut, 10 fps (15 fps did not fit in 15 MB on this busy stage). Online Deluxe 0.10.5,
+Legal Stages + Counterpick and the tile cursor were also loaded; none of them draws here.*
 
 ## Status
 
