@@ -11,12 +11,11 @@ Before making architectural changes, read:
 - docs/alpha-validation-checklist.md
 - docs/skin-converter-notes.md when working on skins
 
-The restart-safe handoff lives in the operator's evidence root outside this repository; do not add a handoff file here.
+Handoffs are kept with the task's evidence outside this repository; do not add a handoff file here.
 
 Key constraints:
 - Runtime feature must remain an in-game Skyline plugin.
 - Do not implement a PC/OBS/browser/network overlay.
 - Online research and external repo inspection are allowed.
 - Do not commit Nintendo assets such as data.arc, layout.arc, extracted BFLYT/BFLAN/BNTX files, textures, or modified game assets.
-- Keep DebugText fallback unless explicitly removing it.
-- Preserve Training Modpack compatibility and patched info_melee/layout.arc workflow.
+- Keep the one HUD render path (the same with Training Modpack, TrainingRooms or neither; the DebugText fallback was removed in v0.3.1) and the patched info_melee/layout.arc workflow.

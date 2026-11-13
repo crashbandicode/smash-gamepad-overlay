@@ -3,150 +3,47 @@
 > **Disclaimer:** this project was developed with the assistance of AI
 > (Claude, Codex and other coding agents) under the operator's direction and
 > review. Every claim that it works on Switch and Eden rests on the dated tests
-> cited in [Status](#status); nothing is claimed beyond those records.
+> cited in [docs/STATUS.md](docs/STATUS.md); nothing is claimed beyond those
+> records.
 
-Rust Skyline plugin for Super Smash Bros. Ultimate that draws Player 1's
-controller inputs inside the game, so a capture card records them with the
-match. It shows what the game received for the player on P1's controller this
-frame, after any other plugin (a CPU pilot, input playback) has written it, on
-that player's own button layout, and updates a set of hidden Smash UI panes
-that a patched `info_melee/layout.arc` adds to the match HUD.
+A Skyline plugin for Super Smash Bros. Ultimate 13.0.5 that draws Player 1's
+controller inside the game's HUD, so a capture card records it with the match.
+It shows the buttons and sticks the game received for P1, on that player's own
+button layout, so inputs another plugin writes for P1 (a CPU pilot) show too.
+It needs a patched copy of the game's match HUD layout, which you generate from
+your own game dump (step 2 below).
 
 ![Overlay in Training](docs/media/gamepad-training.gif)
 
-*Training mode in Eden with v0.1.3 and Training Modpack loaded (2026-10-28): the controller sits to the right of the CPU's HUD and follows P1's buttons and sticks.*
+*Training in Eden, 2026-10-28, v0.1.3 release NRO (`50613206…`) with Training
+Modpack: the controller sits to the right of the CPU's HUD and follows P1's
+buttons and sticks.*
 
 ![Overlay in a match](docs/media/gamepad-match.gif)
 
-*A 1v1 stock match against a CPU in Eden (2026-10-14), starting with a stock loss and respawn: the overlay sits near the bottom centre, beside P1's HUD. v0.1.3 left match placement unchanged.*
-
-Both clips were recorded in Eden build `9a5d704c9c` with Smash 13.0.5 and
-Training Modpack loaded, using Eden's recorder at 12 fps and 640 pixels wide.
-The Training clip runs the v0.1.3 release with the Training Modpack build from
-the tested Switch. That build ran in Eden with `libnro_hook.nro` and
-`libparam_hook.nro` in the plugin folder, as on the Switch. Without
-`libparam_hook.nro` it crashed at startup.
-
-Cropped stills of the same scenes are in `docs/media/gamepad-training.png` and
-`docs/media/gamepad-match.png`. The clips use the optional
-`switch_pro_alt_builtin` skin generated from RetroSpy's `switch-pro-alt` art. A
-default install shows the simpler square-pane `default_simple` skin in the same
-place.
+*A 1v1 stock match against a CPU in Eden, 2026-10-14, build
+`c25-b17-31994bc-dirty…` (the v0.1.0 source), starting with a stock loss and
+respawn: the overlay sits near the bottom centre, beside P1's HUD. Match
+placement has not changed since.*
 
 ## Status
 
-Tested and working on 2026-10-14 on both a Switch and Eden:
-
-- **Switch:** Atmosphère 1.12.0 with hekate 6.5.4, the current Skyline
-  release, ARCropolis 4.1.1, Training Modpack installed, Smash 13.0.5. Two
-  online matches and Training ran in one session with the overlay loaded,
-  alongside other Skyline plugins.
-- **Eden:** development build `9a5d704c9c` (2026-10-14), isolated profile,
-  Smash 13.0.5, with Skyline, ARCropolis and Training Modpack. The overlay
-  loaded in every run that day and the game held 60 fps, in Training and in
-  matches.
-
-Both platforms ran build `c25-b17-31994bc-dirty-c702bd88435e27c6`
-(NRO SHA-256 `20e9e062c9ace6230b3fadda6fb9a1ffdb76659479f3b32de0f1100e9e72a494`).
-Its source is identical to commit `1bae4ee` (only handoff notes
-differ). It was built with the `diagnostic-pane-userdata` feature, an
-observer-only probe that writes `sd:/smash-gamepad-overlay-probe.log`. Release
-`v0.1.0` is the same source built with default features (probe off), so it is
-not byte-identical to the tested binary.
-
-Release `v0.1.1` is the `v0.1.0` source plus a memory pass (release profile
-`opt-level = "s"`, smaller skin tables, stack buffers on the text path; see
-[Memory](#memory)). It changes no hook, offset, pane name or runtime
-behaviour, but its binary was not run on a Switch or in Eden.
-
-Release `v0.1.2` was subsequently tested on Switch on 2026-10-18 with Smash
-13.0.5, Atmosphère 1.12.1, Horizon OC 2.6.0, hekate 6.5.4 and Training Modpack.
-The operator report and startup log identify build `c33-b35-0d25b0d` and successful
-P1 HUD capture. It remains the last physical-device-tested release.
-
-Release `v0.1.3` adds practice-only placement for native Training and lobby
-waiting-room practice. Lobby detection is read-only and guarded for Smash 13.0.5;
-it does not change the game's mode or enable Training Modpack features. Existing
-patched layouts and skin configs remain compatible. See the release notes for
-the patch's validation coverage.
-
-Release `v0.2.0` shows the CPU's inputs while the `ssbu-cpu-pilot` plugin's CPU
-drives P1. When that plugin's `ssbu_cpu_pilot_state_v1` export reports an armed
-CPU level, the overlay draws the CPU's last input instead of the physical pad:
-Attack as A, Special as B, Jump as X, Shield as R, Grab as ZR, taunts as the
-D-pad, and the left stick; the DebugText header reads `CPU Lv<n>`. Without
-that plugin, or while P1 is the player, nothing changes. In Eden on
-2026-10-31 (ssbu-cpu-pilot runs g01–g04), both draw paths followed the CPU with
-the pad idle and followed the pad again afterwards. Not run on a Switch.
-
-Release `v0.3.0` replaces that bridge and no longer knows about any other
-plugin. Each frame the overlay reads the final input the game published for
-the player on the polled controller (after every plugin has written it) and
-that player's button mapping, and draws them on the player's own layout:
-
-- A pressed button lights when the action it is mapped to reached the game.
-- An action that no pressed button explains (a CPU pilot, input playback)
-  lights the button the player's controls map to it (first of X, Y, A, B, R,
-  ZR, L, ZL, then the D-pad).
-- Each stick shows the physical stick when the game's stick agrees with it,
-  otherwise the game's.
-- Buttons that are not game actions (Plus, Minus, stick clicks) and GC
-  trigger travel stay as read from the pad.
-
-Nine 64-byte code windows are checked at boot. On a mismatch, or when no
-player uses the polled controller, the overlay shows the raw pad as before.
-Two display rules were approved by the operator on 2026-11-01:
-
-- The stick agreement counts a game stick that is smaller and in the same
-  direction as the physical one as agreeing (plus one count for rounding),
-  because the game's deadzone curve is read from a parameter file and is not
-  modelled.
-- An A+B smash keeps both buttons lit, as before, although the game clears
-  Special for it.
-
-In Eden on Windows on 2026-11-01 (ssbu-cpu-pilot runs f01 with the diag build
-on the standalone path, and f02 with the release build and the Training Modpack
-on the non-draw path):
-
-- The overlay found P1 by its controller (`c4=0x0` equal to the polled npad).
-- Host presses lit as held, and stick up lit no button.
-- With the ssbu-cpu-pilot plugin driving P1 and the pad idle, the overlay
-  followed the CPU on P1's own layout: the stick moved and B and R lit (that
-  save maps Special to B and Jump to R and ZR).
-- The overlay followed the pad again after P1 was handed back.
-
-Not run on a Switch; Training Modpack input playback was not tested.
-
-The 2026-10-14 Switch and Eden tests had Training Modpack loaded, so they exercised
-the non-draw HUD path. The standalone `Layout::Draw` path used without Training
-Modpack ran in Eden on 13.0.5 on 2026-10-31 (g01, above), not on a Switch.
-
-Release `v0.3.1` (2026-11-05) works with TrainingRooms (`libtraining_rooms.nro`)
-as well as the Training Modpack fork. Up to v0.3.0 the plugin used its HUD path
-only when it found Training Modpack's NRO by file name. When a card replaced
-Training Modpack with TrainingRooms, the overlay switched to its standalone
-`Layout::Draw` path: full size at the bottom right in matches, and a different
-place in Training. v0.3.1 always renders through the HUD path (P1's HUD
-parts), whatever else is installed, and no longer looks up other plugins or
-hooks `Layout::Draw`; the `DebugText` fallback and the
-`FORCE_TRAINING_MODPACK_COMPAT` flag are gone. See
-[How it renders](#how-it-renders). In Eden on 2026-11-05 (Smash 13.0.5,
-TrainingRooms 0.2.0-rc.2, run `ov-fix-tr-yoga`) the overlay sat beside P1's HUD
-in a 1v1 against a CPU and right of the CPU's HUD in Training, as with the
-fork. Not run on a Switch.
-
-The plugin is built with `cargo-skyline` 3.5.0 against the `skyline` crate
-0.6.0 (`Cargo.toml` and `Cargo.lock`). Hook offsets target Smash display
-version 13.0.5 only; other game versions are not supported.
+- **Latest release:** v0.3.1 (2026-11-05). It renders the same way with
+  Training Modpack, TrainingRooms or no training plugin, because it does not
+  look for them; tested in Eden with TrainingRooms on 2026-11-05.
+- **On the operator's Switch:** v0.3.1 since 2026-11-05; no console log of it
+  has been read back yet. The last release with a recorded console test is
+  v0.1.2 (2026-10-18).
+- Details and the history of every release: [docs/STATUS.md](docs/STATUS.md).
 
 ## Install
 
 You need a Switch with Atmosphère (or Eden), Skyline, ARCropolis and Smash
-13.0.5. Title ID: `01006A800016E000`.
+13.0.5 (title ID `01006A800016E000`).
 
 ### 1. Plugin and config
 
-Download `smash-gamepad-overlay-v0.1.3-sd.zip` from the
+Download `smash-gamepad-overlay-v0.3.1-sd.zip` from the
 [latest release](https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay/releases)
 and extract it to the root of your SD card. It contains:
 
@@ -157,25 +54,24 @@ SMASH-GAMEPAD-OVERLAY-README.txt
 ```
 
 To install by hand instead, copy `libsmash_gamepad_overlay.nro` to
-`sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`.
+`sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/`. For Eden,
+use the same paths under Eden's `sdmc` folder.
 
-For Eden, use the same paths under Eden's `sdmc` folder (for example
-`~/.local/share/eden/sdmc/` on Linux).
+**Upgrading:** replace only the NRO to keep your skin config. A patched layout
+made for an earlier version still works; the pane names have not changed
+since v0.1.0.
 
-**Upgrading an existing install:** replace only the NRO to keep your current skin
-config. Existing patched layouts work with v0.1.3; no layout regeneration is needed.
+### 2. Patched match HUD layout (required)
 
-### 2. Patched `info_melee/layout.arc` (required)
-
-The overlay's panes live in a patched copy of the game's match HUD layout.
-That file is derived from Nintendo's data, so it is not shipped. Generate it
-from your own `data.arc` dump with the repository's Rust installer. You need
-Git and Rust 1.96 or newer:
+The overlay's panes live in a patched copy of the game's match HUD layout
+(`info_melee/layout.arc`). That file comes from Nintendo's data, so it is not
+shipped. Generate it from your own `data.arc` dump with the installer in this
+repository. You need Git and Rust 1.96 or newer:
 
 ```sh
 git clone https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay
 cd smash-gamepad-overlay
-git checkout v0.1.3
+git checkout v0.3.1
 git clone https://github.com/crashbandicode/Toolbox-Cli local-checkouts/Toolbox-Cli
 cargo run --release --manifest-path tools/sgpo_installer/Cargo.toml -- \
   --data-arc /path/to/your/data.arc \
@@ -190,235 +86,46 @@ ultimate/mods/smash-gamepad-overlay/ui/layout/info/info_melee/info_melee/layout.
 ultimate/mods/smash-gamepad-overlay/config.json
 ```
 
-ARCropolis loads the layout as a normal data replacement. If you already
-extracted `ui/layout/info/info_melee/info_melee/layout.arc` yourself, pass
-`--layout-arc /path/to/layout.arc` instead of `--data-arc`. The installer run
-above was checked on Linux on 2026-10-14; other host systems were not tested.
+ARCropolis loads the layout as a normal file replacement. If you already
+extracted `ui/layout/info/info_melee/info_melee/layout.arc`, pass
+`--layout-arc /path/to/layout.arc` instead of `--data-arc`. This installer run
+was checked on Linux; other systems were not tested. Without the patched
+layout the overlay stays off and its log names the missing panes.
 
-Without the patched layout the overlay stays inactive and logs the missing
-panes.
+### 3. Hiding it in Training
 
-### 3. Training plugins
-
-The overlay works the same with Training Modpack, TrainingRooms or no training
-plugin: it does not look for them. It shows in Training and in normal matches.
-To hide it only in Training mode, create this empty file:
+The overlay shows in Training and in normal matches. To hide it only in
+Training, create this empty file:
 
 ```text
 sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD
 ```
 
-## Runtime Skin Config
+Skins, the config file and the log are described in
+[docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-The plugin reads an optional config at startup and again at each match start
-(not every frame):
+## Limits
 
-```text
-sd:/ultimate/mods/smash-gamepad-overlay/config.json
-```
+- Smash 13.0.5 only.
+- It does not show in a lobby's waiting-room practice (Local Wireless or
+  online rooms): the game draws a different HUD there.
+- The skins are simple programmer art.
+- A results-to-character-select crash seen once on a Switch on 2026-10-06 has
+  no known cause.
 
-```json
-{
-  "active_skin": "auto",
-  "default_skins": {
-    "switch": "default_simple",
-    "gamecube": "default_simple_gamecube"
-  }
-}
-```
-
-If the file is missing, unreadable, malformed, or names an unknown skin, the
-plugin falls back to `default_simple`.
-
-With `active_skin` set to `auto`, the skin follows P1's controller family:
-Switch, Pro Controller, Joy-Con and handheld use `default_skins.switch`;
-GameCube controllers use `default_skins.gamecube`. The skin can change during
-a match if P1's controller family changes. To pin one skin, set `active_skin`
-to one built-in name and start a new match.
-
-Built-in skin names:
-
-- `default_simple`: square-pane Switch/Pro/Joy-Con skin.
-- `default_simple_gamecube`: the same panes with non-GameCube controls omitted.
-- `minimal_debug`: compatibility alias for `default_simple`.
-- `switch_pro_alt_builtin`: generated from RetroSpy's `switch-pro-alt` skin.
-  Renders only if the installed layout has the matching `sgpo_alt_*` panes.
-- `gamecube_tron_builtin`: generated from RetroSpy's `gamecube-tron` skin.
-  Renders only if the installed layout has the matching `sgpo_gct_*` panes.
-
-The two RetroSpy-based skins need RetroSpy's skin folders when you generate the
-layout; see [Optional RetroSpy skins](#optional-retrospy-skins).
-
-## How it renders
-
-The plugin captures P1's HUD parts layout from the HUD info-alpha hook and
-drives live input updates from the scene-update hook. It does not hook
-`Layout::Draw`. Cached panes are tracked through a guarded `Pane::Finalize`
-observer so a pane is forgotten when the game frees it. A guarded
-`Layout::Finalize` observer only counts; it evicts nothing. Where the skin root
-sits in each captured layout is the host-tested table in
-`crates/sgpo-ui-cache-metadata/src/placement.rs`: beside P1's HUD in a match, to
-the right of the CPU's HUD in Training and waiting-room practice.
-
-Up to v0.3.0 this was a "Training Modpack compatibility mode", chosen when the
-plugin found Training Modpack's NRO by file name; otherwise it hooked
-`Layout::Draw` and drew into the root `info_melee` layout (bottom right, full
-size). A training plugin under another name switched it to that path without
-notice, so the path choice was removed on 2026-11-05.
-
-## Runtime Log
-
-The plugin writes a small diagnostic log to `sd:/smash-gamepad-overlay.log`
-(for Eden, `<eden>/sdmc/smash-gamepad-overlay.log`). It records startup, the
-build ID, the Smash display version, hook resolution, the HUD capture/update
-status and the active display path. This is useful when `cargo skyline listen`
-shows nothing.
-
-If the log says `could not find ... sgpo_root`, Smash is loading an unpatched
-`info_melee` layout. Regenerate and reinstall it
-with the Rust installer (step 2 of [Install](#install), `tools/sgpo_installer`);
-the log's own hint still names the Python scripts.
-
-## Known Limitations
-
-- Smash 13.0.5 only. The hooks and offsets are gated to that version.
-- The visual skins are rough programmer art made of cloned picture panes.
-- The overlay lives in P1's HUD parts layout, so it uses HUD-local
-  coordinates. Training and lobby practice use a separate placement to the
-  right of the CPU's bottom HUD; normal matches keep their P1-adjacent
-  placement.
-- Waiting-room practice (a Local Wireless or online room) draws the
-  `info_waiting` layout and not `info_melee`, so the overlay does not show
-  there. Eden on 2026-11-05 showed the same with Training Modpack and with
-  TrainingRooms.
-- A dropped layout can keep its last alpha until the game finalizes its panes.
-- A results-to-CSS crash seen once on Switch during the 2026-10-06
-  investigation has no proven root cause. The pane lifetime fix in this
-  version addresses a different, proven fault and is not claimed to fix it.
-
-## Build From Source
-
-Requirements: a Rust toolchain set up for Skyline, `cargo-skyline`, and for the
-installer a checkout of [Toolbox-Cli](https://github.com/crashbandicode/Toolbox-Cli)
-at `local-checkouts/Toolbox-Cli` (a path dependency until `nx-layout-toolbox`
-is published as a crate).
+## Build
 
 ```sh
-cargo skyline check
 cargo skyline build --release
 ```
 
 The NRO is written to
-`target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro`.
+`target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro`. The
+installer needs a checkout of
+[Toolbox-Cli](https://github.com/crashbandicode/Toolbox-Cli) at
+`local-checkouts/Toolbox-Cli`. Tests, build IDs and memory figures:
+[docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-Runtime logs include a build ID such as `c26-b3-1234abc`. `c26` comes from
-`git rev-list --count HEAD`, `b3` is a local build counter under `target/`
-(reset by `cargo clean`), and a `-dirty-<hash>` suffix marks a build from an
-uncommitted tree. `SMASH_GAMEPAD_OVERLAY_BUILD_ID` overrides the whole ID.
+## License
 
-The host-testable cache metadata crate has its own tests:
-
-```sh
-cargo test --manifest-path crates/sgpo-ui-cache-metadata/Cargo.toml
-```
-
-Host `cargo clippy` on the plugin crate itself fails on stable Rust because
-`nnsdk` uses `#![feature]`; use `cargo skyline clippy` instead.
-
-### Memory
-
-The plugin is mapped into the game's memory for the whole session, so the
-release profile favours size: `opt-level = "s"` with fat LTO and
-`panic = "abort"`. Measured on the aarch64 ELF with the same fixed build ID
-(`readelf -S`; NRO size from the file):
-
-| build | `.text` | `.rodata` | `.data` | `.bss` | `.rela.dyn` | NRO |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| v0.1.0 (`opt-level = 3`) | 87744 | 22032 | 13296 | 4016 | 8544 | 143360 |
-| v0.1.0 code, `opt-level = "s"` | 63952 | 21912 | 13304 | 4048 | 8496 | 118784 |
-| v0.1.1 code, `opt-level = 3` | 89984 | 21592 | 10936 | 4016 | 7776 | 139264 |
-| v0.1.1 (`opt-level = "s"`) | 64544 | 21496 | 10944 | 4048 | 7728 | 114688 |
-
-Besides the profile, v0.1.1 drops the two converter-only name fields from
-every `SkinElement` (the tables lose 2360 bytes of `.data` and 32 dynamic
-relocations), formats `DebugText` lines into fixed 256-byte stack buffers
-instead of `String`s, and passes text to `set_text_string` from a stack buffer
-instead of a `CString`. In Visual mode the per-frame paths already allocated
-nothing; the text fallback now allocates nothing per frame either.
-
-### Layout generation with a local `.env`
-
-With `.env` configured (copy `.env.example`), the installer reads
-`SGPO_DATA_ARC` and `SGPO_SD_ROOT`, generates the layout, writes
-`config.json`, backs up any existing layout/config/NRO, and stages the NRO
-from `target/` to the SD root:
-
-```sh
-cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force
-```
-
-Explicit inputs, including the NRO to stage:
-
-```sh
-cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- \
-  --sd-root /path/to/sdmc \
-  --data-arc /path/to/data.arc \
-  --nro target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro \
-  --force
-```
-
-Add `--sd-zip <file> --no-sd-stage` to write an SD-root ZIP (NRO, layout and
-config) instead of copying to an SD root.
-
-The patcher adds a hidden `sgpo_root` with 24 visual panes to the root
-`info_melee` layout and to both player HUD parts layouts. The player-parts
-panes are the ones the plugin draws; the root panes served the `Layout::Draw`
-path removed on 2026-11-05 and stay in the layout so existing installs keep
-working.
-The layout notes in `docs/` were taken from a 13.0.4 dump; the 13.0.5 change
-was a code-offset update.
-
-The older Python scripts (`tools/patch_info_melee_layout.py`,
-`tools/stage_arcropolis_layout.py`) remain as reference tooling. See
-`docs/release-bundle-strategy.md` for the bundle plan.
-
-### Optional RetroSpy skins
-
-```sh
-cargo run --manifest-path tools/sgpo_installer/Cargo.toml -- --force --include-all-presets
-```
-
-This builds `switch_pro_alt_builtin` and `gamecube_tron_builtin` into the same
-layout. Point `--switch-pro-alt-dir` and `--gamecube-tron-dir` at RetroSpy's
-`skins/switch-pro-alt` and `skins/gamecube-tron` folders. Generated textures
-default to `--texture-format bc7-srgb`; `rgba8-srgb` is available for
-diagnosing compression artifacts at the cost of a larger layout.
-
-## Skin Model
-
-The renderer is skin-driven. It does not create or decode PNGs at runtime.
-Each skin is a Rust table of `SkinElement` entries that map a logical
-`ControlId` to an existing named Smash UI pane, with base position, size,
-released/pressed alpha and scale, and an optional stick movement range. Heavy
-work (PNG conversion, texture packing, pane injection) happens on the PC before
-runtime. See [Skin Converter Notes](docs/skin-converter-notes.md).
-
-## Agent Use
-
-- `AGENTS.md`: project instructions for coding agents.
-- `CLAUDE.md`: Claude Code entry point.
-- The restart-safe handoff lives in the operator's evidence root outside this repository; do not add a handoff file here.
-- `sgpo-handoff.mdc`: portable Cursor rule; copy it to
-  `.cursor/rules/sgpo-handoff.mdc` to use it.
-
-## Validation
-
-Before using a build as a new baseline, run the
-[Alpha Validation Checklist](docs/alpha-validation-checklist.md).
-
-## Project Constraints
-
-Rust only. The overlay must render inside Smash so a capture card records it:
-no PC overlay, OBS/browser source, network streaming, RetroSpy hardware or
-external receiver. Do not commit or publish Nintendo assets: `data.arc`,
-extracted BFLYT/BFLAN/BNTX files, textures, or generated `layout.arc` files.
+MIT ([LICENSE](LICENSE)).

@@ -4,6 +4,12 @@
 **Re:** `docs/bntx-texture-append-issue-summary.md`
 **Status:** ROOT CAUSE FOUND & FIXED (2026-05-28). See **RESOLUTION** below.
 
+> **Note (2026-11-13):** this is a log of 2026-05-28. Its last entry says the
+> Toolbox-Cli fix was not committed yet; the public repository
+> (https://github.com/crashbandicode/Toolbox-Cli, `main` at `edce70e`) now has
+> the regression test it names, `tests/bntx_dict_parallel_order.rs`. The
+> `local-assets/` and `/mnt/c/...` paths below are that day's local files.
+
 > ## RESOLUTION (supersedes the original "disproven" conclusion)
 >
 > The experiments were right to keep pushing. There **was** a real Toolbox-Cli

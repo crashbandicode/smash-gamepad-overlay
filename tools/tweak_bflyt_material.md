@@ -43,7 +43,7 @@ the runtime would use.
 
 ## Workflow
 
-Run from the repo root (`/home/intpa/smash-gamepad-overlay`).
+Run from the repository root.
 
 Replace `<BFLYT_PATH>` with the actual file path, e.g.
 `local-assets/proof/switch-pro-alt-one-pane/unpacked/blyt/info_melee.bflyt`.

@@ -10,7 +10,7 @@ Runtime constraints:
 - Do not implement a PC overlay, OBS browser source, TCP/UDP streaming, RetroSpy hardware path, or external receiver.
 - Online research, git clones, and local tooling scripts are allowed for development and reverse-engineering reference.
 - Do not commit Nintendo assets: `data.arc`, extracted BFLYTs/BFLANs/BNTX, textures, or modified/generated `layout.arc` files.
-- Do not reuse live HUD text panes or clone/append panes at runtime: reused HUD panes and cloned `TextBox`es froze the Switch before the countdown and Eden at the VS screen in earlier tests. The renderer only updates panes pre-injected into the patched layout, by skin pane name.
+- Do not reuse live HUD text panes or clone/append panes at runtime. The renderer only updates panes pre-injected into the patched layout, by skin pane name.
 
 Build target:
 - `cargo-skyline`
@@ -22,15 +22,15 @@ Build target:
 - Native Ubuntu commands run through `/usr/bin/pwsh -NoLogo -NoProfile -NonInteractive -Command`.
 - Global routing authority: `/home/intpa/.codex/DELEGATION_ROUTING.md`.
 - Forgejo `origin` (git.syntaxbyexample.com) is the source of truth; the GitHub remote is secondary. Do not push without the operator's explicit permission.
-- Do not add a handoff file to this repository. The restart-safe handoff lives in the operator's evidence root (`~/.local/share/ssbu-mod-backups/`).
-- Before completing Cargo work: `cargo skyline clippy` with zero warnings, `cargo skyline build --release`, and the host tests in `crates/sgpo-ui-cache-metadata` and `tools/sgpo_installer`. Host `cargo clippy` on the plugin crate fails on stable Rust (see the README build notes).
-- Release NROs, SD zips and SHA-256 manifests are published on Forgejo releases and kept under the evidence root, never committed.
+- Do not add a handoff file to this repository; keep it with the task's evidence outside the repository (the v0.3.1 work's is `/home/intpa/smash-training-lobby/artifacts/phase23/overlay-investigation/HANDOFF.md`).
+- Before completing Cargo work: `cargo skyline clippy` with zero warnings, `cargo skyline build --release`, and the host tests in `crates/sgpo-ui-cache-metadata`, `crates/sgpo-final-input` and `tools/sgpo_installer`. Host `cargo clippy` on the plugin crate fails on stable Rust (see `docs/TECHNICAL.md`).
+- Release NROs, SD zips and SHA-256 manifests are published on Forgejo releases and kept with the release's evidence, never committed.
 
 ## Current Milestone
 
 Current baseline:
 - Visual overlay works with patched `info_melee/layout.arc`.
-- Buttons and analog sticks update from raw P1 HID state.
+- Buttons and analog sticks show the game's final input for P1 on the player's own layout (since v0.3.0), with the raw P1 HID state as the fallback.
 - One render path for every setup (since 2026-11-05): the non-draw HUD path in P1's HUD parts, which requires the patched layout installed through ARCropolis as a data replacement. Do not choose behaviour by other plugins' file names; that is how TrainingRooms broke the overlay.
 
 Near-term goals:
@@ -55,7 +55,7 @@ Useful references:
 - Switch Toolbox / Switch Layout Editor: manual BFLYT/BFLAN inspection/editing references.
 
 Before major changes, read:
-1. `README.md`
+1. `README.md`, `docs/STATUS.md` and `docs/TECHNICAL.md`
 2. `docs/info-melee-layout-notes.md`
 3. `docs/alpha-validation-checklist.md`
 4. `docs/skin-converter-notes.md` if working on skins

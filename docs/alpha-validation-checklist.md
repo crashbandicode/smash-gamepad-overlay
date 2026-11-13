@@ -14,7 +14,7 @@ Use this checklist before treating the current square-pane visual overlay as a s
 
 - Pro Controller: confirm A/B/X/Y, L/R/ZL/ZR, L3/R3, Plus/Minus, d-pad, and both stick dots update.
 - GameCube controller: confirm face buttons, L/R trigger values where mapped, and both stick dots update.
-- Handheld/Joy-Con, if available: confirm the plugin does not report `controller not ready` and the overlay updates.
+- Handheld/Joy-Con, if available: confirm the overlay updates (the log may show one `final-input no player for npad …; using raw HID` line).
 
 ## Missing layout
 
@@ -30,7 +30,7 @@ Use this checklist before treating the current square-pane visual overlay as a s
 - Confirm this plugin logs `rendering in the match HUD's player parts (HUD path); other plugins are not looked up`, with or without a training plugin.
 - Confirm Training Modpack does not show `Failed to find offset for LAYOUT_ARC_MALLOC` or `Could not find pane TrModInputLog`.
 - Start a non-training match and confirm the visual overlay appears dim by default, then updates with controller input.
-- Enter Training mode without `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD` and confirm SGPO renders alongside Training Modpack.
+- Enter Training mode without `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD` and confirm SGPO renders alongside the training plugin (or with none).
 - Create an empty `sd:/ultimate/mods/smash-gamepad-overlay/HIDE_TRAINING_GAMEPAD`, start a new Training session (the flag is re-read at every match start, so no relaunch), and confirm SGPO stays inactive only in Training mode.
 - Remove `HIDE_TRAINING_GAMEPAD`, start a new Training session, and confirm SGPO renders in Training mode again.
 - Leave Training mode, start another non-training match, and confirm SGPO renders again.

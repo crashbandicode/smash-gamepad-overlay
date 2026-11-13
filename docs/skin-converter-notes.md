@@ -115,8 +115,7 @@ the normal release path.
 
 Generated PNG panes are written with alpha `0` in the layout. The runtime is
 responsible for making them visible after it resolves the active skin; this
-prevents stale or unresolved generated art from appearing during compatibility
-mode.
+prevents stale or unresolved generated art from appearing before then.
 
 The older Python layout builders are retained as reference/dev tooling and for
 comparing the Rust installer against the original pipeline. New user-facing work

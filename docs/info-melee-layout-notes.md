@@ -117,7 +117,7 @@ Notes:
 6. No BFLAN animations are added.
 7. No names referenced by existing BFLANs are reused.
 
-The root copy supports the normal `Layout::Draw` renderer. The player-parts copies support the Training Modpack compatibility renderer, which captures P1's HUD parts layout instead of hooking `Layout::Draw`.
+Since v0.3.1 (2026-11-05) the plugin has one renderer, the HUD path: it captures P1's HUD parts layout from the HUD's set-info-alpha call and draws into the player-parts copy. The root copy served the `Layout::Draw` renderer removed then; the HUD path uses it only if the hook reports the root layout (`src/hud/capture.rs`).
 
 Install `local-assets/modified/info_melee/layout.arc` as a normal Smash data replacement for:
 
@@ -131,13 +131,11 @@ This gives the Rust plugin real Smash UI panes to find and update:
 
 The Rust renderer:
 
-- Searches `info_melee` for `sgpo_root`.
-- Or, in Training Modpack compatibility mode, captures P1's HUD parts layout and searches that layout data for `sgpo_root`.
+- Captures P1's HUD parts layout and searches that layout data for `sgpo_root`.
 - Iterates the built-in `SkinElement` table.
 - Sets each pane visible.
 - Updates alpha, scale, and position from `ControllerViewState`.
-- Leaves DebugText fallback intact on the normal `Layout::Draw` path if visual panes are missing.
-- On the Training Modpack path, missing visual panes are logged and the overlay stays inactive, because SGPO intentionally does not install the draw hook needed by the text fallback.
+- If visual panes are missing, logs them once and stays inactive (the `DebugText` fallback was removed in v0.3.1).
 
 ## Later Visual HUD Expansion
 

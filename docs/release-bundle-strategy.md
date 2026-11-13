@@ -14,10 +14,11 @@ files, or generated `layout.arc` files in Forgejo releases.
 
 ## Release Contents
 
-The v0.1.3 release bundle contains four assets:
+Every Forgejo release from v0.1.1 to v0.3.1 (the latest, checked 2026-11-13)
+carries four assets:
 
 - `libsmash_gamepad_overlay.nro`
-- `smash-gamepad-overlay-v0.1.3-sd.zip`, an SD-root archive holding the NRO at its Skyline plugin path, `config.json` and a short README text, with no game data
+- `smash-gamepad-overlay-v<version>-sd.zip`, an SD-root archive holding the NRO at its Skyline plugin path, `config.json` and a short README text, with no game data
 - `manifest.json`
 - `SHA256SUMS.txt`
 
@@ -119,5 +120,6 @@ behavior:
 - optionally produce a portable `sgpo-tools.zip` with the Rust installer,
   reference Python tooling, and docs.
 
-The runtime plugin should remain simple: it reads `config.json`, polls P1 input,
-and updates already-existing named panes.
+The runtime plugin should remain simple: it reads `config.json`, reads P1's
+input (the game's final input since v0.3.0, the raw pad as the fallback), and
+updates already-existing named panes.
