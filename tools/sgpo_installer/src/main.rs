@@ -2746,4 +2746,21 @@ mod tests {
         eprintln!("parity: 3 layouts equal after a toolbox round trip, {byte_identical} of 3 byte-identical to the installer's");
         let _ = fs::remove_dir_all(&work);
     }
+
+    /// An older patched layout still installed as a mod (the installer's output, any skins) is handed back
+    /// unchanged: no pane is added twice. Set `SGPO_PATCHED_INFO_MELEE` to such a file; skipped without it.
+    #[test]
+    fn a_patched_layout_is_left_unchanged() {
+        let Ok(path) = std::env::var("SGPO_PATCHED_INFO_MELEE") else {
+            eprintln!("skipped: SGPO_PATCHED_INFO_MELEE is not set");
+            return;
+        };
+        let patched = fs::read(&path).unwrap();
+        let mut buf = patched.clone();
+        buf.resize(patched.len() + sgpo_layout_merge::MAX_GROWTH, 0);
+        let merged = sgpo_layout_merge::merge_in_place(&mut buf, patched.len()).unwrap();
+        assert_eq!((merged.patched, merged.already, merged.len), (0, 3, patched.len()));
+        assert_eq!(&buf[..patched.len()], &patched[..]);
+        eprintln!("legacy: {} bytes left unchanged, already=3", patched.len());
+    }
 }

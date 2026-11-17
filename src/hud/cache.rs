@@ -817,7 +817,7 @@ fn log_layout_patch_probe(layout_data: u64, layout_name: &str, skin: &BuiltInSki
 
     if has_original_marker && !has_skin_root {
         trace(
-            "loaded P1 HUD parts layout looks unpatched; install generated layout.arc through ARCropolis at ui/layout/info/info_melee/info_melee/layout.arc",
+            "loaded P1 HUD parts layout has no SGPO panes; see the 'layout merge' line (ARCropolis is required), or install the installer's layout.arc for the RetroSpy skins",
         );
     }
 }

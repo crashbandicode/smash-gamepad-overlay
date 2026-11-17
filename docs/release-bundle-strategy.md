@@ -1,6 +1,12 @@
 # Release Bundle Strategy
 
-The release should stay split between runtime code and user-owned assets:
+**Since v0.4.0 (2026-11-17)** a release is the NRO alone, with its sha256: the plugin merges its default-skin
+panes into the `info_melee` layout at load (`docs/NRO-ONLY-DESIGN.md`), so users install no `layout.arc`. The
+installer flow below remains for the textured RetroSpy skins only. Operator approval, 2026-11-17: "yes release
+0.4.0 after its proven in eden".
+
+The rules for what a release may contain are unchanged. The installer path keeps runtime code and user-owned
+assets apart:
 
 ```text
 release NRO + PC-side install tool

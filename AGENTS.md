@@ -10,7 +10,7 @@ Runtime constraints:
 - Do not implement a PC overlay, OBS browser source, TCP/UDP streaming, RetroSpy hardware path, or external receiver.
 - Online research, git clones, and local tooling scripts are allowed for development and reverse-engineering reference.
 - Do not commit Nintendo assets: `data.arc`, extracted BFLYTs/BFLANs/BNTX, textures, or modified/generated `layout.arc` files.
-- Do not reuse live HUD text panes or clone/append panes at runtime. The renderer only updates panes pre-injected into the patched layout, by skin pane name.
+- Do not reuse live HUD text panes or clone/append live panes at runtime. The renderer only updates SGPO's own panes, by skin pane name. Since 0.4.0 those panes are added to the `info_melee` archive's bytes at load, before the game builds any pane (`src/layout_merge.rs`, `crates/sgpo-layout-merge`): the operator approved this on 2026-11-17 ("yes release 0.4.0 after its proven in eden", the go for `docs/NRO-ONLY-DESIGN.md` option C).
 
 Build target:
 - `cargo-skyline`
@@ -29,14 +29,14 @@ Build target:
 ## Current Milestone
 
 Current baseline:
-- Visual overlay works with patched `info_melee/layout.arc`.
+- Visual overlay works with no `layout.arc` on the card (0.4.0): an ARCropolis file callback merges SGPO's panes into whatever `info_melee` ARCropolis serves (vanilla or another mod's), in place. An older patched `layout.arc` still installed is left as it is.
 - Buttons and analog sticks show the game's final input for P1 on the player's own layout (since v0.3.0), with the raw P1 HID state as the fallback.
-- One render path for every setup (since 2026-11-05): the non-draw HUD path in P1's HUD parts, which requires the patched layout installed through ARCropolis as a data replacement. Do not choose behaviour by other plugins' file names; that is how TrainingRooms broke the overlay.
+- One render path for every setup (since 2026-11-05): the non-draw HUD path in P1's HUD parts, which needs SGPO's panes in that layout (merged at load since 0.4.0, or the installer's patched layout). Do not choose behaviour by other plugins' file names; that is how TrainingRooms broke the overlay.
 
 Near-term goals:
 - Keep the current A-marker/full square overlay as the stability baseline.
 - Improve visual polish without breaking pane caching or fallback behavior.
-- Skin packs are converted into patched layout assets and matching `SkinElement` data by `tools/sgpo_installer` on the PC; extend that path rather than adding a second one.
+- Two paths build SGPO's panes, from one pane table (`crates/sgpo-layout-merge`): the plugin's merge at load for the default square skins, and `tools/sgpo_installer` on the PC for the textured RetroSpy skins (`switch_pro_alt_builtin`, `gamecube_tron_builtin`), which need materials and BNTX textures the merge does not add yet. The operator approved the second path on 2026-11-17 ("yes release 0.4.0 after its proven in eden"). Extend these two paths rather than adding a third; the installer's `in_place_merge_matches_the_installer_patch` test keeps them identical.
 
 Prefer simple, testable steps over a large polished implementation.
 
