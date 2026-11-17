@@ -46,6 +46,10 @@ name = "sgpo-final-input"
 version = "0.1.0"
 
 [[package]]
+name = "sgpo-layout-merge"
+version = "0.1.0"
+
+[[package]]
 name = "sgpo-ui-cache-metadata"
 version = "0.1.0"
 
@@ -77,6 +81,7 @@ name = "smash-gamepad-overlay"
 version = "0.3.1"
 dependencies = [
  "sgpo-final-input",
+ "sgpo-layout-merge",
  "sgpo-ui-cache-metadata",
  "skyline",
 ]

@@ -59,6 +59,7 @@ unsafe fn update_match_hud_overlay_from_scene(_: &InlineCtx) {
     if !HUD_SCENE_UPDATE_LOGGED.swap(true, Ordering::Relaxed) {
         trace("non-draw HUD scene update hook fired");
     }
+    crate::layout_merge::log_new_outcome();
 
     if training_mode_overlay_disabled() {
         cache::discard_runtime();

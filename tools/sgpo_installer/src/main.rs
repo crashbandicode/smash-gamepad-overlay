@@ -8,6 +8,11 @@ use nx_layout_toolbox::manifest as nx_manifest;
 use nx_layout_toolbox::sarc;
 use nx_layout_toolbox::texpipe::Bc7Quality;
 use serde::Serialize;
+use sgpo_layout_merge::{
+    INITIAL_PANE_ALPHA, LAYOUT_PATH as INFO_MELEE_LAYOUT_ARC_PATH, PANE_SPECS,
+    PLAYER_MARKER_TEMPLATE, PLAYER_MATERIAL_SOURCE_PANE, PLAYER_PARTS_BFLYTS, ROOT_BFLYT,
+    ROOT_MARKER_TEMPLATE, SGPO_ROOT, SGPO_ROOT_POS, SGPO_ROOT_SIZE,
+};
 use smash_arc::{ArcFile, ArcLookup, Region};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
@@ -16,7 +21,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 
-const INFO_MELEE_LAYOUT_ARC_PATH: &str = "ui/layout/info/info_melee/info_melee/layout.arc";
 const MOD_FOLDER_NAME: &str = "smash-gamepad-overlay";
 const SMASH_TITLE_ID: &str = "01006A800016E000";
 
@@ -27,24 +31,10 @@ const DEFAULT_NRO: &str = "target/aarch64-skyline-switch/release/libsmash_gamepa
 const DEFAULT_SWITCH_PRO_ALT_DIR: &str = "/mnt/c/Program Files/RetroSpy/skins/switch-pro-alt";
 const DEFAULT_GAMECUBE_TRON_DIR: &str = "/mnt/c/Program Files/RetroSpy/skins/gamecube-tron";
 
-const ROOT_BFLYT: &str = "blyt/info_melee.bflyt";
-const PLAYER_PARTS_BFLYTS: [&str; 2] = [
-    "blyt/info_melee_lct_player_00.bflyt",
-    "blyt/info_melee_lct_player_01.bflyt",
-];
-
 const AUTO_SKIN_NAME: &str = "auto";
 const DEFAULT_SIMPLE_SKIN_NAME: &str = "default_simple";
 const DEFAULT_SIMPLE_GAMECUBE_SKIN_NAME: &str = "default_simple_gamecube";
 
-const SGPO_ROOT: &str = "sgpo_root";
-const SGPO_ROOT_POS: (f32, f32, f32) = (760.0, -330.0, 0.0);
-const SGPO_ROOT_SIZE: (f32, f32) = (360.0, 300.0);
-const INITIAL_PANE_ALPHA: u8 = 0;
-
-const ROOT_MARKER_TEMPLATE: &str = "set_rep_stock_01";
-const PLAYER_MARKER_TEMPLATE: &str = "set_rep_01";
-const PLAYER_MATERIAL_SOURCE_PANE: &str = "set_rep_stock_01";
 const GENERATED_PANE_TEMPLATE: &str = "sgpo_pro_a_marker";
 const GENERATED_MATERIAL_TEMPLATE: &str = "set_rep_stock_01";
 
@@ -56,33 +46,6 @@ const RELEASED_SCALE: f32 = 1.0;
 const BUTTON_PRESSED_SCALE: f32 = 1.05;
 const ZIP_MOD_TIME: u16 = 0;
 const ZIP_MOD_DATE: u16 = 0x0021; // 1980-01-01, the earliest valid DOS ZIP date.
-
-const PANE_SPECS: [PaneSpec; 24] = [
-    PaneSpec::new("sgpo_pro_lt", -145.0, 122.0, 54.0, 20.0),
-    PaneSpec::new("sgpo_pro_lb", -145.0, 95.0, 54.0, 20.0),
-    PaneSpec::new("sgpo_pro_rt", 65.0, 122.0, 54.0, 20.0),
-    PaneSpec::new("sgpo_pro_rb", 65.0, 95.0, 54.0, 20.0),
-    PaneSpec::new("sgpo_pro_minus", -38.0, 45.0, 20.0, 20.0),
-    PaneSpec::new("sgpo_pro_plus", 20.0, 45.0, 20.0, 20.0),
-    PaneSpec::new("sgpo_pro_l3", -68.0, -30.0, 18.0, 18.0),
-    PaneSpec::new("sgpo_pro_r3", 62.0, -100.0, 18.0, 18.0),
-    PaneSpec::new("sgpo_pro_ls_gate", -105.0, -30.0, 58.0, 58.0),
-    PaneSpec::new("sgpo_pro_ls_dot", -105.0, -30.0, 14.0, 14.0),
-    PaneSpec::new("sgpo_pro_rs_gate", 30.0, -100.0, 58.0, 58.0),
-    PaneSpec::new("sgpo_pro_rs_dot", 30.0, -100.0, 14.0, 14.0),
-    PaneSpec::new("sgpo_pro_du", -105.0, -78.0, 16.0, 16.0),
-    PaneSpec::new("sgpo_pro_dd", -105.0, -128.0, 16.0, 16.0),
-    PaneSpec::new("sgpo_pro_dl", -130.0, -103.0, 16.0, 16.0),
-    PaneSpec::new("sgpo_pro_dr", -80.0, -103.0, 16.0, 16.0),
-    PaneSpec::new("sgpo_pro_dul", -130.0, -78.0, 13.0, 13.0),
-    PaneSpec::new("sgpo_pro_dur", -80.0, -78.0, 13.0, 13.0),
-    PaneSpec::new("sgpo_pro_ddl", -130.0, -128.0, 13.0, 13.0),
-    PaneSpec::new("sgpo_pro_ddr", -80.0, -128.0, 13.0, 13.0),
-    PaneSpec::new("sgpo_pro_btn_y", 15.0, -20.0, 24.0, 24.0),
-    PaneSpec::new("sgpo_pro_btn_x", 45.0, 10.0, 24.0, 24.0),
-    PaneSpec::new("sgpo_pro_btn_b", 45.0, -50.0, 24.0, 24.0),
-    PaneSpec::new("sgpo_pro_a_marker", 75.0, -20.0, 28.0, 28.0),
-];
 
 #[derive(Debug, Parser)]
 #[command(
@@ -204,27 +167,6 @@ struct SkinPreset {
     manifest_dir: PathBuf,
     report: PathBuf,
     validate_builtin: bool,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct PaneSpec {
-    name: &'static str,
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-}
-
-impl PaneSpec {
-    const fn new(name: &'static str, x: f32, y: f32, width: f32, height: f32) -> Self {
-        Self {
-            name,
-            x,
-            y,
-            width,
-            height,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2755,5 +2697,46 @@ mod tests {
                 "rgba8-srgb".to_string()
             )
         );
+    }
+
+    /// The plugin's in-place merge and this installer give the same three layouts from the player's own stock
+    /// `info_melee` archive, and the merge leaves every other member byte-identical. Game data never enters the
+    /// repository: set `SGPO_STOCK_INFO_MELEE` to an extracted 13.0.5 `layout.arc`; without it the test is skipped.
+    #[test]
+    fn in_place_merge_matches_the_installer_patch() {
+        let Ok(path) = std::env::var("SGPO_STOCK_INFO_MELEE") else {
+            eprintln!("skipped: SGPO_STOCK_INFO_MELEE is not set");
+            return;
+        };
+        let stock = fs::read(&path).unwrap();
+        let mut buf = stock.clone();
+        buf.resize(stock.len() + sgpo_layout_merge::MAX_GROWTH, 0);
+        let merged = sgpo_layout_merge::merge_in_place(&mut buf, stock.len()).unwrap();
+        assert_eq!((merged.patched, merged.already), (3, 0));
+        buf.truncate(merged.len);
+
+        let work = std::env::temp_dir().join(format!("sgpo-merge-parity-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&work);
+        sarc::unpack_to_dir(&stock, &work).unwrap();
+        patch_info_melee_layout(&work).unwrap();
+
+        let stock_files = sarc::unpack(&stock).unwrap();
+        let merged_files = sarc::unpack(&buf).unwrap();
+        assert_eq!(stock_files.len(), merged_files.len());
+        let mut byte_identical = 0;
+        for (before, after) in stock_files.iter().zip(&merged_files) {
+            assert_eq!(before.name, after.name);
+            if PLAYER_PARTS_BFLYTS.contains(&after.name.as_str()) || after.name == ROOT_BFLYT {
+                let installer = fs::read(work.join(&after.name)).unwrap();
+                let ours = write_bflyt(&read_bflyt(&after.data).unwrap()).unwrap();
+                let theirs = write_bflyt(&read_bflyt(&installer).unwrap()).unwrap();
+                assert_eq!(ours, theirs, "{} parses to the installer's layout", after.name);
+                byte_identical += usize::from(after.data == installer);
+            } else {
+                assert_eq!(before.data, after.data, "{} unchanged", after.name);
+            }
+        }
+        eprintln!("parity: 3 layouts equal after a toolbox round trip, {byte_identical} of 3 byte-identical to the installer's");
+        let _ = fs::remove_dir_all(&work);
     }
 }

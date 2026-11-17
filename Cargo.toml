@@ -19,6 +19,7 @@ diag = []
 skyline = "0.6.0"
 sgpo-final-input = { path = "crates/sgpo-final-input" }
 sgpo-ui-cache-metadata = { path = "crates/sgpo-ui-cache-metadata" }
+sgpo-layout-merge = { path = "crates/sgpo-layout-merge" }
 
 [profile.dev]
 panic = "abort"

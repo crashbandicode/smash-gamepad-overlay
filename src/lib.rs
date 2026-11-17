@@ -4,6 +4,7 @@ mod config;
 mod final_input;
 mod hud;
 mod input;
+mod layout_merge;
 mod logger;
 mod offsets;
 mod pane_lifetime;
@@ -62,7 +63,9 @@ pub fn main() {
     // the root info_melee layout (bottom right, full size). Replacing Training Modpack with a plugin of another
     // name (TrainingRooms, 2026-11-05) silently switched it to that second path.
     trace("rendering in the match HUD's player parts (HUD path); other plugins are not looked up");
-    trace("the patched info_melee layout must be installed as a normal layout replacement");
+    if !layout_merge::install(&smash_display_version) {
+        trace("the patched info_melee layout must be installed as a normal layout replacement");
+    }
     if pane_finalize_ready {
         install_non_draw_hud_hooks();
     } else {

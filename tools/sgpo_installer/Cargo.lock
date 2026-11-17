@@ -588,9 +588,14 @@ dependencies = [
  "nx-layout-toolbox",
  "serde",
  "serde_json",
+ "sgpo-layout-merge",
  "smash-arc",
  "walkdir",
 ]
+
+[[package]]
+name = "sgpo-layout-merge"
+version = "0.1.0"
 
 [[package]]
 name = "simd-adler32"
