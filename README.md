@@ -12,6 +12,12 @@ It shows the buttons and sticks the game received for P1, on that player's own
 button layout, so inputs another plugin writes for P1 (a CPU pilot) show too.
 Since v0.4.0 it is a single NRO: no patched layout file is needed.
 
+![v0.4.0 in Training with no layout.arc on the card: Mario jabs, throws a fireball and jumps, and the controller right of the CPU's HUD lights each input; a HUD mod draws the damage decimals as solid blocks, and TrainingRooms' own bars run at the top](docs/media/gamepad-nro-only.gif)
+
+*Training in Eden, 2026-11-17, the v0.4.0 release NRO (`305ca4e7…`) alone with
+no `layout.arc`, beside TrainingRooms (`458c0636`) and a test HUD mod that
+changes the same `info_melee` layout (its damage decimals are solid blocks):
+both changes show. 6.6 s.*
 ![Overlay in Training: Captain Falcon walks, attacks, jumps, shields and smashes, and the controller right of the CPU's HUD lights each input](docs/media/gamepad-training.gif)
 
 *Training in Eden, 2026-11-13, the v0.3.1 release NRO (`5ab98bdf…`) with the
