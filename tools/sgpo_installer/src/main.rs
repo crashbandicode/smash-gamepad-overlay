@@ -2711,7 +2711,14 @@ mod tests {
         let stock = fs::read(&path).unwrap();
         let mut buf = stock.clone();
         buf.resize(stock.len() + sgpo_layout_merge::MAX_GROWTH, 0);
+        let started = std::time::Instant::now();
         let merged = sgpo_layout_merge::merge_in_place(&mut buf, stock.len()).unwrap();
+        eprintln!(
+            "merge: {} -> {} bytes in {:?} (host)",
+            stock.len(),
+            merged.len,
+            started.elapsed()
+        );
         assert_eq!((merged.patched, merged.already), (3, 0));
         buf.truncate(merged.len);
 

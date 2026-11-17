@@ -99,8 +99,8 @@ pub const TARGETS: [Target; 3] = [
 const MAX_TEMPLATE: usize = 0x200;
 /// Members are moved forward keeping their original alignment, capped here (BNTX and BNSH need 0x1000).
 const MAX_ALIGN: usize = 0x2000;
-/// Up to this many members (13.0.5's `info_melee` has 344).
-const MAX_MEMBERS: usize = 2048;
+/// Up to this many members (13.0.5's `info_melee` has 344). With it the merge needs about 16 KiB of stack.
+const MAX_MEMBERS: usize = 768;
 const PAN1_LEN: usize = 0x54;
 const PANE_NAME: core::ops::Range<usize> = 0x0C..0x24;
 const PIC1_MATERIAL: usize = 0x64;
@@ -215,12 +215,33 @@ fn put_f32(d: &mut [u8], at: usize, v: f32) {
     put_u32(d, at, v.to_bits());
 }
 
-/// A SARC member: where its name is and where its bytes are (absolute offsets).
+/// A SARC member: where its NUL-terminated name is and where its bytes are, now and after the merge (absolute
+/// offsets). Kept to 16 bytes: the whole merge state lives on the stack of whatever thread loads the file.
 #[derive(Clone, Copy, Default)]
 struct Member {
-    name: (usize, usize),
-    start: usize,
-    end: usize,
+    name_at: u32,
+    start: u32,
+    end: u32,
+    new_start: u32,
+}
+
+impl Member {
+    fn start(&self) -> usize {
+        self.start as usize
+    }
+    fn end(&self) -> usize {
+        self.end as usize
+    }
+    fn len(&self) -> usize {
+        (self.end - self.start) as usize
+    }
+    fn new_start(&self) -> usize {
+        self.new_start as usize
+    }
+    fn name<'a>(&self, d: &'a [u8], data_off: usize) -> Option<&'a [u8]> {
+        let tail = d.get(self.name_at as usize..data_off)?;
+        Some(&tail[..tail.iter().position(|b| *b == 0)?])
+    }
 }
 
 struct Sarc {
@@ -231,6 +252,9 @@ struct Sarc {
 fn read_sarc(d: &[u8], members: &mut [Member; MAX_MEMBERS]) -> Result<Sarc, Error> {
     if d.get(0..4) != Some(b"SARC") || u16_at(d, 6) != Some(0xFEFF) || d.get(0x14..0x18) != Some(b"SFAT") {
         return Err(Error::NotSarc);
+    }
+    if d.len() > u32::MAX as usize / 2 {
+        return Err(Error::SarcBounds);
     }
     let data_off = u32_at(d, 0x0C).ok_or(Error::SarcBounds)? as usize;
     let count = u16_at(d, 0x1A).ok_or(Error::SarcBounds)? as usize;
@@ -254,9 +278,8 @@ fn read_sarc(d: &[u8], members: &mut [Member; MAX_MEMBERS]) -> Result<Sarc, Erro
             return Err(Error::SarcBounds);
         }
         let name_at = names + (attr & 0xFF_FFFF) as usize * 4;
-        let tail = d.get(name_at..data_off).ok_or(Error::SarcBounds)?;
-        let len = tail.iter().position(|b| *b == 0).ok_or(Error::SarcBounds)?;
-        *member = Member { name: (name_at, name_at + len), start, end };
+        *member = Member { name_at: name_at as u32, start: start as u32, end: end as u32, new_start: start as u32 };
+        member.name(d, data_off).ok_or(Error::SarcBounds)?;
     }
     Ok(Sarc { data_off, count })
 }
@@ -425,17 +448,17 @@ pub fn merge_in_place(buf: &mut [u8], len: usize) -> Result<Merged, Error> {
     let d = buf.get(..len).ok_or(Error::SarcBounds)?;
     let mut members = [Member::default(); MAX_MEMBERS];
     let sarc = read_sarc(d, &mut members)?;
-    let members = &members[..sarc.count];
+    let members = &mut members[..sarc.count];
 
     let mut plans: [Option<Plan>; 3] = [None; 3];
     let mut already = 0u8;
     for (slot, target) in plans.iter_mut().zip(TARGETS.iter()) {
         let index = members
             .iter()
-            .position(|m| d.get(m.name.0..m.name.1) == Some(target.member.as_bytes()))
+            .position(|m| m.name(d, sarc.data_off) == Some(target.member.as_bytes()))
             .ok_or(Error::MemberMissing(target.member))?;
         let m = members[index];
-        *slot = plan(&d[m.start..m.end], index, target)?;
+        *slot = plan(&d[m.start()..m.end()], index, target)?;
         already += u8::from(slot.is_none());
     }
     if plans.iter().all(Option::is_none) {
@@ -451,53 +474,50 @@ pub fn merge_in_place(buf: &mut [u8], len: usize) -> Result<Merged, Error> {
     }
     order.sort_unstable_by_key(|&i| members[i as usize].start);
     let grow = |i: usize| plans.iter().flatten().find(|p| p.member == i).map_or(0, Plan::extra);
-    let mut new_start = [0usize; MAX_MEMBERS];
     let mut cursor = sarc.data_off;
     for &i in order.iter() {
-        let m = members[i as usize];
-        let align = align_of(m.start);
-        let start = m.start.max(cursor.next_multiple_of(align));
-        new_start[i as usize] = start;
-        cursor = start + (m.end - m.start) + grow(i as usize);
+        let m = &mut members[i as usize];
+        let start = m.start().max(cursor.next_multiple_of(align_of(m.start())));
+        cursor = start + m.len() + grow(i as usize);
+        if cursor > available {
+            return Err(Error::BufferTooSmall { needed: cursor, available });
+        }
+        m.new_start = start as u32;
     }
     let new_len = cursor.max(len);
-    if new_len > available {
-        return Err(Error::BufferTooSmall { needed: new_len, available });
-    }
 
     // Templates out first: every member keeps its original bytes until it is moved itself.
     let mut roots = [[0u8; PAN1_LEN]; 3];
     let mut markers = [[0u8; MAX_TEMPLATE]; 3];
     for (k, p) in plans.iter().enumerate() {
         if let Some(p) = p {
-            let base = members[p.member].start;
+            let base = members[p.member].start();
             roots[k].copy_from_slice(&buf[base + p.root_pane..base + p.root_pane + PAN1_LEN]);
             markers[k][..p.marker_len].copy_from_slice(&buf[base + p.marker..base + p.marker + p.marker_len]);
         }
     }
     for &i in order.iter().rev() {
         let (i, m) = (i as usize, members[i as usize]);
-        let (to, old_len) = (new_start[i], m.end - m.start);
-        if to != m.start {
-            buf.copy_within(m.start..m.end, to);
+        if m.new_start != m.start {
+            buf.copy_within(m.start()..m.end(), m.new_start());
         }
         if let Some((k, p)) = plans.iter().enumerate().find_map(|(k, p)| p.filter(|p| p.member == i).map(|p| (k, p))) {
-            splice(buf, to, old_len, &p, &roots[k], &markers[k]);
+            splice(buf, m.new_start(), m.len(), &p, &roots[k], &markers[k]);
         }
     }
     // Zero the padding between members, then rewrite the member table and the archive size.
     let mut prev_end = sarc.data_off;
     for &i in order.iter() {
-        let i = i as usize;
-        buf[prev_end..new_start[i]].fill(0);
-        prev_end = new_start[i] + (members[i].end - members[i].start) + grow(i);
+        let m = members[i as usize];
+        buf[prev_end..m.new_start()].fill(0);
+        prev_end = m.new_start() + m.len() + grow(i as usize);
     }
     buf[prev_end..new_len].fill(0);
     for (i, m) in members.iter().enumerate() {
         let node = 0x20 + 16 * i;
-        let start = new_start[i] - sarc.data_off;
+        let start = m.new_start() - sarc.data_off;
         put_u32(buf, node + 8, start as u32);
-        put_u32(buf, node + 12, (start + (m.end - m.start) + grow(i)) as u32);
+        put_u32(buf, node + 12, (start + m.len() + grow(i)) as u32);
     }
     put_u32(buf, 0x08, new_len as u32);
     let patched = plans.iter().flatten().count() as u8;
