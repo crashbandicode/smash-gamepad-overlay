@@ -36,7 +36,7 @@ Current baseline:
 Near-term goals:
 - Keep the current A-marker/full square overlay as the stability baseline.
 - Improve visual polish without breaking pane caching or fallback behavior.
-- Two paths build SGPO's panes, from one pane table (`crates/sgpo-layout-merge`): the plugin's merge at load for the default square skins, and `tools/sgpo_installer` on the PC for the textured RetroSpy skins (`switch_pro_alt_builtin`, `gamecube_tron_builtin`), which need materials and BNTX textures the merge does not add yet. The operator approved the second path on 2026-11-17 ("yes release 0.4.0 after its proven in eden"). Extend these two paths rather than adding a third; the installer's `in_place_merge_matches_the_installer_patch` test keeps them identical.
+- Two paths build SGPO's panes, from one pane table (`crates/sgpo-layout-merge`): the plugin's merge at load, and `tools/sgpo_installer` on the PC. The operator approved the second path on 2026-11-17 ("yes release 0.4.0 after its proven in eden"). Since 0.4.1 the merge also adds the textured RetroSpy skins (`switch_pro_alt_builtin`, `gamecube_tron_builtin`): their panes, materials and BNTX textures come from a blob that `tools/skin_blob.py` extracts from an installer-patched layout and the build embeds (`SGPO_SKIN_BLOB`; the blob is never committed). The operator asked for this on 2026-11-17 ("I want it all built into the nro without the arc file and it look like just like it does today"). Extend these two paths rather than adding a third; the installer's `in_place_merge_matches_the_installer_patch` test and `crates/sgpo-layout-merge/tests/full_skins.rs` keep them identical.
 
 Prefer simple, testable steps over a large polished implementation.
 

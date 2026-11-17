@@ -5,3 +5,4 @@ edition = "2021"
 publish = false
 
 [dependencies]
+miniz_oxide = { version = "=0.8.9", default-features = false }

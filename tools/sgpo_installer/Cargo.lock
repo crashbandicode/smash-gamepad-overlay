@@ -596,6 +596,9 @@ dependencies = [
 [[package]]
 name = "sgpo-layout-merge"
 version = "0.1.0"
+dependencies = [
+ "miniz_oxide",
+]
 
 [[package]]
 name = "simd-adler32"

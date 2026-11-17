@@ -18,8 +18,10 @@ fn main() {
     println!("cargo:rerun-if-changed=src");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=SMASH_GAMEPAD_OVERLAY_BUILD_ID");
+    println!("cargo:rerun-if-env-changed=SGPO_SKIN_BLOB");
 
     let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is set by Cargo"));
+    embed_skin_blob(&out_dir);
     let generated_build_info = out_dir.join("sgpo_build_info.rs");
     let change_number = git_change_number();
     let build_number = increment_build_number();
@@ -36,6 +38,19 @@ fn main() {
         ),
     )
     .expect("failed to write generated build info");
+}
+
+/// The textured RetroSpy skins (`tools/skin_blob.py`'s output, kept out of the repository) go into the plugin when
+/// `SGPO_SKIN_BLOB` names the file; without it the plugin carries the default skins only.
+fn embed_skin_blob(out_dir: &Path) {
+    let bytes = match env::var("SGPO_SKIN_BLOB") {
+        Ok(path) if !path.trim().is_empty() => {
+            println!("cargo:rerun-if-changed={path}");
+            fs::read(&path).unwrap_or_else(|error| panic!("SGPO_SKIN_BLOB {path}: {error}"))
+        }
+        _ => Vec::new(),
+    };
+    fs::write(out_dir.join("sgpo-skins.bin"), bytes).expect("failed to write the skin blob");
 }
 
 fn git_change_number() -> u32 {

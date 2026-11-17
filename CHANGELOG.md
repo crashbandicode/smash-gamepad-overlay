@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.1 (2026-11-18)
+
+- **The RetroSpy skins are built in too.** `switch_pro_alt_builtin` and `gamecube_tron_builtin` now work with just
+  the NRO, with no `layout.arc`: the plugin adds their panes, materials and textures to the match HUD layout as it
+  loads, the same way it adds the default panes. With the same `config.json`, the overlay looks as it did with the
+  installer's patched layout.
+- If another mod has reshaped the HUD's texture archive or layouts so the skins cannot be added, the default panes
+  still go in and the log says why (`skins=0 … skin_error=…`).
+- An old patched `layout.arc` that is still installed is left alone, as in 0.4.0.
+- The plugin is larger: 444 KiB (448 KiB of memory, was 120 KiB), mostly the compressed skin textures (288 KiB).
+  While the HUD layout loads, ARCropolis's buffer for it is about 5 MB, as with the installer's patched layout.
+- Release builds embed the skins from `tools/skin_blob.py`'s output (`SGPO_SKIN_BLOB`); a build without it has the
+  default skins only.
+- Tested in Eden only; not yet tested on a Switch.
+
 ## v0.4.0 (2026-11-17)
 
 - **Install just the NRO.** No `layout.arc` is needed any more. When the game loads its match HUD layout

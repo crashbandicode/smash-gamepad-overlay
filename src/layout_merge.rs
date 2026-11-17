@@ -8,10 +8,16 @@
 //!
 //! The callback runs inside ARCropolis's file load: it allocates nothing, takes no lock and writes no file. It
 //! publishes its outcome to atomics, and the scene update writes the log line.
+//!
+//! When the build embeds the textured RetroSpy skins (`SGPO_SKIN_BLOB`, see `build.rs`), the merge also adds their
+//! panes, materials and textures (`merge_with`), using a work space allocated once at boot.
 
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::OnceLock;
 
-use sgpo_layout_merge::{merge_in_place, Error, LAYOUT_HASH40, LAYOUT_PATH, MAX_GROWTH, VANILLA_LEN_13_0_5};
+use sgpo_layout_merge::{
+    merge_in_place, merge_with, Error, Scratch, SkinBlob, LAYOUT_HASH40, LAYOUT_PATH, MAX_GROWTH, VANILLA_LEN_13_0_5,
+};
 use skyline::nn::ro::LookupSymbol;
 
 use crate::logger::trace;
@@ -32,6 +38,13 @@ static OUTCOME: AtomicU64 = AtomicU64::new(0);
 static MERGE_US: AtomicU32 = AtomicU32::new(0);
 static BASE_LEN: AtomicU32 = AtomicU32::new(0);
 static LOGGED_SEQ: AtomicU32 = AtomicU32::new(0);
+/// The last load's skins, written before `OUTCOME`: textures (16 bits) | skin error (8) | layouts with skins (8).
+static SKIN_OUTCOME: AtomicU32 = AtomicU32::new(0);
+
+static SKIN_BLOB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/sgpo-skins.bin"));
+static SKINS: OnceLock<Option<SkinBlob<'static>>> = OnceLock::new();
+/// The skins' work space; the callback takes it for the merge and puts it back.
+static SCRATCH: AtomicPtr<Scratch> = AtomicPtr::new(core::ptr::null_mut());
 
 fn lookup(name: &core::ffi::CStr) -> usize {
     let mut address = 0usize;
@@ -51,8 +64,22 @@ pub(crate) fn install(version: &str) -> bool {
         trace("layout merge: not installed: ARCropolis's callback API was not found (ARCropolis is required)");
         return false;
     }
+    let skins = *SKINS.get_or_init(|| SkinBlob::parse(SKIN_BLOB));
+    match skins {
+        Some(s) => {
+            SCRATCH.store(Box::into_raw(Box::<Scratch>::default()), Ordering::Release);
+            trace(&format!(
+                "layout merge: textured skins embedded: {} textures, {} B of pixels, blob {} B",
+                s.count,
+                s.data_len,
+                SKIN_BLOB.len()
+            ));
+        }
+        None if SKIN_BLOB.is_empty() => trace("layout merge: no textured skins embedded (default skins only)"),
+        None => trace("layout merge: the embedded skin blob is invalid; default skins only"),
+    }
     let base = largest_mod_layout().max(VANILLA_LEN_13_0_5);
-    let max_size = base + MAX_GROWTH;
+    let max_size = base + MAX_GROWTH + skins.map_or(0, |s| s.max_growth());
     LOAD_FILE.store(load, Ordering::Release);
     // SAFETY: `register` is ARCropolis's exported `arcrop_register_callback(Hash40, usize, CallbackFn)`.
     let register: RegisterCallback = unsafe { core::mem::transmute::<usize, RegisterCallback>(register) };
@@ -107,13 +134,25 @@ extern "C" fn on_layout_load(hash: u64, out: *mut u8, capacity: usize, out_size:
     }
     // SAFETY: ARCropolis's buffer of `capacity` bytes, the first `got` of them the base archive.
     let buffer = unsafe { core::slice::from_raw_parts_mut(out, capacity) };
-    match merge_in_place(buffer, got) {
+    let scratch = SCRATCH.swap(core::ptr::null_mut(), Ordering::AcqRel);
+    // SAFETY: the pointer came from `Box::into_raw` at boot, and the swap gives this call sole use of it.
+    let result = match (SKINS.get().copied().flatten(), unsafe { scratch.as_mut() }) {
+        (Some(skins), Some(work)) => merge_with(buffer, got, &skins, work),
+        _ => merge_in_place(buffer, got),
+    };
+    if !scratch.is_null() {
+        SCRATCH.store(scratch, Ordering::Release);
+    }
+    match result {
         Ok(merged) => {
             *out_size = merged.len;
+            let skins = (u32::from(merged.textures) << 16) | (u32::from(merged.skin_error) << 8) | u32::from(merged.skins);
+            SKIN_OUTCOME.store(skins, Ordering::Relaxed);
             publish(CODE_OK, merged.patched, merged.already, merged.len, got, started);
             true
         }
         Err(error) => {
+            SKIN_OUTCOME.store(0, Ordering::Relaxed);
             publish(error.code(), 0, 0, 0, got, started);
             false
         }
@@ -135,7 +174,10 @@ pub(crate) fn log_new_outcome() {
         CODE_BASE_NOT_LOADED => "kept: ARCropolis did not serve the base archive",
         code => Error::describe(code),
     };
+    let skin_word = SKIN_OUTCOME.load(Ordering::Relaxed);
+    let (textures, skin_error, skins) = (skin_word >> 16, ((skin_word >> 8) & 0xFF) as u8, skin_word & 0xFF);
+    let skin_note = if skin_error == 0 { "" } else { Error::describe(skin_error) };
     trace(&format!(
-        "layout merge: load={seq} result={result} code={code} patched={patched} already={already} base={base} len={len} merge_us={us}"
+        "layout merge: load={seq} result={result} code={code} patched={patched} already={already} skins={skins} textures={textures} skin_error={skin_error} {skin_note} base={base} len={len} merge_us={us}"
     ));
 }
