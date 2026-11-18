@@ -49,6 +49,8 @@ Legal Stages + Counterpick and the tile cursor were also loaded; none of them dr
 
 ## Install
 
+Tested on: Super Smash Bros. Ultimate 13.0.5 · Switch firmware 23.5.0 · Atmosphère 1.12.2
+
 You need a Switch with Atmosphère (or Eden), Skyline, ARCropolis and Smash
 13.0.5 (title ID `01006A800016E000`).
 
