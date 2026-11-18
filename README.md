@@ -121,4 +121,6 @@ needs a checkout of
 
 ## License
 
-MIT ([LICENSE](LICENSE)).
+MIT ([LICENSE](LICENSE)). The two textured skins (`switch_pro_alt_builtin`,
+`gamecube_tron_builtin`) are RetroSpy-style skins drawn by crashbandicode,
+the project's author, and are part of this project under the same licence.
