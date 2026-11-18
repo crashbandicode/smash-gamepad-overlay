@@ -10,11 +10,12 @@ A Skyline plugin for Super Smash Bros. Ultimate 13.0.5 that draws Player 1's
 controller inside the game's HUD, so a capture card records it with the match.
 It shows the buttons and sticks the game received for P1, on that player's own
 button layout, so inputs another plugin writes for P1 (a CPU pilot) show too.
-Since v0.4.0 it is a single NRO: no patched layout file is needed.
+Since v0.4.0 it is a single NRO, with the RetroSpy skins built in: no patched
+layout file is needed.
 
 ![v0.4.0 in Training with no layout.arc on the card: Mario jabs, throws a fireball and jumps, and the controller right of the CPU's HUD lights each input; a HUD mod draws the damage decimals as solid blocks, and TrainingRooms' own bars run at the top](docs/media/gamepad-nro-only.gif)
 
-*Training in Eden, 2026-11-17, the v0.4.0 release NRO (`305ca4e7…`) alone with
+*Training in Eden, 2026-11-17, a v0.4.0 pre-release build (`305ca4e7…`, default skin) alone with
 no `layout.arc`, beside TrainingRooms (`458c0636`) and a test HUD mod that
 changes the same `info_melee` layout (its damage decimals are solid blocks):
 both changes show. 6.6 s.*
@@ -35,9 +36,11 @@ Legal Stages + Counterpick and the tile cursor were also loaded; none of them dr
 
 ## Status
 
-- **Latest release:** v0.4.0 (2026-11-17): only the NRO, no `layout.arc`.
-  Tested in Eden on 2026-11-17, alone, with TrainingRooms and a HUD mod, and
-  with an old patched layout still installed; **not yet tested on a Switch**.
+- **Latest release:** v0.4.0 (2026-11-18): only the NRO, no `layout.arc`, the
+  RetroSpy skins built in. Tested in Eden on 2026-11-17 and 18, alone, with
+  TrainingRooms and a HUD mod, and with an old patched layout still installed;
+  with the same config it draws as the v0.3.1 patched-layout setup did.
+  **Not yet tested on a Switch.**
   How it works: [docs/NRO-ONLY-DESIGN.md](docs/NRO-ONLY-DESIGN.md).
 - **On the operator's Switch:** v0.3.1 since 2026-11-05; no console log of it
   has been read back yet. The last release with a recorded console test is
@@ -60,35 +63,25 @@ sd:/atmosphere/contents/01006A800016E000/romfs/skyline/plugins/libsmash_gamepad_
 ```
 
 That is all: **no `layout.arc` is needed** since v0.4.0. When the game loads
-its match HUD layout, the plugin adds its own panes to that layout through
-ARCropolis, so a HUD mod that changes the same layout keeps working with it.
-For Eden, use the same path under Eden's `sdmc` folder.
+its match HUD layout, the plugin adds its own panes, and the RetroSpy skins'
+textures, to that layout through ARCropolis, so a HUD mod that changes the
+same layout keeps working with it. For Eden, use the same path under Eden's
+`sdmc` folder.
 
 **Upgrading from v0.3.x:** replace the NRO. You may delete the old
 `ultimate/mods/smash-gamepad-overlay/ui/` folder (the patched layout); if you
 keep it, the plugin sees its panes already there and leaves it as it is. Your
 `config.json` keeps working.
 
-### 2. RetroSpy skins (optional)
+### 2. Skins
 
-The default square skins need nothing else. The two textured skins drawn from
-RetroSpy art (`switch_pro_alt_builtin`, `gamecube_tron_builtin`) still need
-the patched layout from the installer in this repository, built from your
-own `data.arc` dump (Git and Rust 1.96 or newer):
+The NRO carries the default square skins and the two textured RetroSpy skins
+(`switch_pro_alt_builtin`, `gamecube_tron_builtin`). With
+`"active_skin": "auto"` in
+`sd:/ultimate/mods/smash-gamepad-overlay/config.json`, a Pro Controller gets
+the Switch skin and a GameCube controller the GameCube one; the config is
+described in [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
-```sh
-git clone https://git.syntaxbyexample.com/intpa/smash-gamepad-overlay
-cd smash-gamepad-overlay
-git checkout v0.4.0
-git clone https://github.com/crashbandicode/Toolbox-Cli local-checkouts/Toolbox-Cli
-cargo run --release --manifest-path tools/sgpo_installer/Cargo.toml -- \
-  --data-arc /path/to/your/data.arc --include-all-presets \
-  --sd-zip sgpo-layout.zip --no-sd-stage --skip-nro --force
-```
-
-Extract `sgpo-layout.zip` to the root of your SD card. Like every
-`layout.arc` mod, that file replaces the whole match HUD layout, so it does
-not combine with another HUD mod.
 ### 3. Hiding it in Training
 
 The overlay shows in Training and in normal matches. To hide it only in
@@ -106,7 +99,7 @@ Skins, the config file and the log are described in
 - Smash 13.0.5 only.
 - It does not show in a lobby's waiting-room practice (Local Wireless or
   online rooms): the game draws a different HUD there.
-- The skins are simple programmer art.
+- The default square skins are simple programmer art.
 - A results-to-character-select crash seen once on a Switch on 2026-10-06 has
   no known cause.
 
@@ -117,8 +110,11 @@ cargo skyline build --release
 ```
 
 The NRO is written to
-`target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro`. The
-installer needs a checkout of
+`target/aarch64-skyline-switch/release/libsmash_gamepad_overlay.nro`. Release
+builds embed the textured skins: `tools/skin_blob.py` extracts them from a
+layout the installer patched with them, and `SGPO_SKIN_BLOB` points the build
+at that file; without it the NRO has the default skins only. The installer
+needs a checkout of
 [Toolbox-Cli](https://github.com/crashbandicode/Toolbox-Cli) at
 `local-checkouts/Toolbox-Cli`. Tests, build IDs and memory figures:
 [docs/TECHNICAL.md](docs/TECHNICAL.md).
